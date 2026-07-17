@@ -69,7 +69,7 @@
     <div id="hearts">🫧🫧🫧</div>
   </div>
   <div id="combo"></div>
-  <div id="hint" class="hidden">🟢みどり=たべる　🔴あか=キケン　／　押しっぱなしでのびーる</div>
+  <div id="hint" class="hidden">たべもの だけ たべよう！ ヘンな物（🧦🪨🚽）は ダメ</div>
   <div id="banner"></div>
 
   <div id="title" class="screen">
@@ -78,11 +78,11 @@
     <button class="btn" id="startBtn">はじめる</button>
     <div class="pill" style="text-align:left; max-width:320px;">
       🫧 <b>画面を押しっぱなし</b>で首がのびる・離すと戻る<br><br>
-      <span style="color:#7dffa6;font-weight:900;">○ みどりのわ ＝ たべる！</span><br>
-      <span style="font-size:22px;letter-spacing:3px;">🍡🍙🍣🍩</span>
-      <span style="color:#ffd34e;">🌙🛸👁️（きらきら＝レア高得点）</span><br><br>
-      <span style="color:#ff6b7a;font-weight:900;">✕ あかい点線・ブルブル ＝ ダメ！</span><br>
-      <span style="font-size:22px;letter-spacing:3px;">⚡🌶️💀🧦🪨</span><br>
+      <b>たべもの を たべる！</b><br>
+      <span style="font-size:24px;letter-spacing:3px;">🍡🍙🍣🍤🍰🍕</span><br>
+      <span style="opacity:.8;font-size:13px;">大きい豪華なごはんは 高得点＆コンボ</span><br><br>
+      <b>たべもの じゃない ヘンな物 は たべちゃダメ</b><br>
+      <span style="font-size:24px;letter-spacing:3px;">🧦🪨🚽🧻👟</span><br>
       <span style="opacity:.8;font-size:13px;">→ 食べると きぶん🫧 が１つ減る（3つで おわり）</span>
     </div>
   </div>
@@ -160,14 +160,20 @@ const LEVELS = [
 function curLevel(){ return LEVELS[Math.min(level, LEVELS.length-1)]; }
 
 // item catalog
+// GOOD = だれが見ても「食べ物」。 BAD = だれが見ても「食べ物じゃないヘンな物」。
 const GOOD = [
   {e:'🍡',p:10}, {e:'🍙',p:10}, {e:'🍤',p:12}, {e:'🍩',p:12},
   {e:'🍣',p:14}, {e:'🍓',p:14}, {e:'🍌',p:12}, {e:'🐟',p:14},
+  {e:'🍢',p:12}, {e:'🥟',p:12}, {e:'🍉',p:14}, {e:'🌭',p:12},
 ];
-const RARE = [
-  {e:'🌙',p:50}, {e:'🛸',p:40}, {e:'👁️',p:45}, {e:'🗿',p:35}, {e:'🌈',p:30}, {e:'⭐',p:30},
+const RARE = [ // ちょっと豪華な食べ物（高得点）
+  {e:'🍰',p:40}, {e:'🎂',p:45}, {e:'🍕',p:35}, {e:'🍔',p:35},
+  {e:'🍱',p:40}, {e:'🍜',p:35}, {e:'🍭',p:30}, {e:'🍇',p:30},
 ];
-const BAD = [ {e:'⚡'}, {e:'🌶️'}, {e:'💀'}, {e:'🧦'}, {e:'🪨'} ];
+const BAD = [ // 空を流れてくるが、どう見ても食べ物ではない
+  {e:'🧦'}, {e:'🪨'}, {e:'🚽'}, {e:'🧻'}, {e:'🔩'},
+  {e:'🩴'}, {e:'🧼'}, {e:'🪤'}, {e:'🔌'}, {e:'🧯'}, {e:'👟'}, {e:'🪥'},
+];
 
 function baseY(){ return H - Math.max(90, H*0.13); }
 function restHeadY(){ return baseY() - Math.max(70, H*0.10); }
@@ -425,36 +431,17 @@ function draw(){
   ctx.quadraticCurveTo(W*0.5, by-24, W+20, by+20); ctx.lineTo(W+20,H+20); ctx.closePath();
   ctx.fill();
 
-  // items — clear colour code: GREEN ring = eat, GOLD = rare (eat!), RED dashed + shake = danger
+  // items — the object itself tells you: food = eat, obviously-not-food = don't. No colour hints.
   ctx.textAlign='center'; ctx.textBaseline='middle';
   for(const it of items){
-    const bad=it.bad, rare=it.type==='rare';
-    const col = bad ? '255,72,86' : rare ? '255,205,60' : '86,222,130';
-    const pulse = 1 + Math.sin(timeSec*(bad?11:5) + it.x*0.05)*(bad?0.10:0.05);
-    const R = it.r*1.05*pulse;
     ctx.save(); ctx.translate(it.x,it.y);
-    // soft glow halo (colour tells you good/bad at a glance)
-    const rg = ctx.createRadialGradient(0,0,R*0.3,0,0,R*1.7);
-    rg.addColorStop(0,'rgba('+col+','+(bad?0.5:0.42)+')');
-    rg.addColorStop(1,'rgba('+col+',0)');
-    ctx.fillStyle=rg; ctx.beginPath(); ctx.arc(0,0,R*1.7,0,7); ctx.fill();
-    // ring: solid for edible, dashed danger-ring for bad
-    ctx.lineWidth=bad?4:3; ctx.strokeStyle='rgba('+col+',0.95)';
-    if(bad){ ctx.setLineDash([7,7]); ctx.lineDashOffset=-timeSec*40; }
-    ctx.beginPath(); ctx.arc(0,0,R,0,7); ctx.stroke(); ctx.setLineDash([]);
-    // emoji (bad ones jitter nervously = "don't eat me")
-    const jx = bad?(Math.random()-0.5)*4:0, jy=bad?(Math.random()-0.5)*4:0;
-    ctx.rotate(Math.sin(it.rot)*(bad?0.25:0.12));
-    ctx.font=(it.r*1.5)+'px serif';
-    ctx.fillText(it.emoji, jx, jy);
-    // little corner badge so it's unmistakable even without colour
-    ctx.rotate(-Math.sin(it.rot)*(bad?0.25:0.12));
-    ctx.font='900 '+(it.r*0.7)+'px sans-serif'; ctx.textBaseline='middle';
-    ctx.fillStyle=bad?'#ff2d42':(rare?'#ffc200':'#2fbf5a');
-    ctx.fillText(bad?'✕':'○', R*0.92, -R*0.92);
+    ctx.rotate(Math.sin(it.rot)*0.12);
+    ctx.shadowColor='rgba(0,0,0,0.28)'; ctx.shadowBlur=8; ctx.shadowOffsetY=3;
+    const size = it.type==='rare' ? it.r*1.85 : it.r*1.55; // rare food is a little bigger
+    ctx.font=size+'px serif';
+    ctx.fillText(it.emoji,0,0);
     ctx.restore();
   }
-  ctx.textBaseline='middle';
 
   // creature
   drawCreature(by);
