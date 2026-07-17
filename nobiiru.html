@@ -63,6 +63,8 @@
 <body>
 <div id="wrap">
   <canvas id="c"></canvas>
+  <!-- トップ(横丁)へ戻る。canvas とは別要素なので首のばし入力は誤爆しない -->
+  <a href="index.html" id="backBtn" style="position:absolute;top:max(12px,env(safe-area-inset-top));left:12px;z-index:8;background:#000;color:#ffd34e;border:3px solid #ffd34e;border-radius:999px;font-weight:900;font-size:15px;padding:8px 16px;text-decoration:none;font-family:'Hiragino Maru Gothic ProN',sans-serif">← よこちょう</a>
 
   <div id="hud" class="hidden">
     <div><div id="scoreLbl">スコア</div><div id="score">0</div></div>
