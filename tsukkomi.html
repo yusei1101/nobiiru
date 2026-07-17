@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ツッコミ">
+<meta name="theme-color" content="#2a1a3a">
+<title>ツッコミ</title>
+<style>
+  *{ margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ width:100%; height:100%; overflow:hidden; background:#2a1a3a; }
+  body{
+    font-family:"Hiragino Maru Gothic ProN","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+    touch-action:none; user-select:none; -webkit-user-select:none;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #wrap{ position:relative; width:100%; height:100%; }
+  canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+
+  .screen{ position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; text-align:center; color:#fff; padding:24px; gap:16px; z-index:5; }
+  .hidden{ display:none !important; }
+  #title h1{ font-size:clamp(54px,20vw,120px); font-weight:900; letter-spacing:-3px; color:#ffe14d;
+    text-shadow:4px 4px 0 #000, 0 0 40px rgba(255,220,120,.4); transform:rotate(-3deg);
+    animation:bob 2.2s ease-in-out infinite; }
+  @keyframes bob{ 0%,100%{transform:translateY(0) rotate(-3deg)} 50%{transform:translateY(-12px) rotate(2deg)} }
+  #title .sub{ font-size:clamp(14px,4.5vw,19px); font-weight:700; line-height:1.7; color:#e8e2ff; }
+  .btn{ margin-top:4px; background:#ffd34e; color:#3a2a00; font-weight:900; font-size:clamp(20px,6vw,26px);
+    border:4px solid #000; border-radius:999px; padding:15px 46px; box-shadow:5px 6px 0 #000; cursor:pointer; transition:transform .06s, box-shadow .06s; }
+  .btn:active{ transform:translate(4px,5px); box-shadow:1px 1px 0 #000; }
+  .pill{ background:rgba(255,255,255,.12); border-radius:14px; padding:12px 16px; font-size:14px; line-height:1.8; max-width:330px; }
+  .back{ position:absolute; top:max(12px,env(safe-area-inset-top)); left:12px; z-index:6;
+    background:#000; color:#ffe14d; border:3px solid #ffe14d; border-radius:999px;
+    font-weight:900; font-size:15px; padding:8px 16px; cursor:pointer; text-decoration:none; }
+  #gameover h2{ font-size:clamp(38px,12vw,74px); font-weight:900; text-shadow:4px 4px 0 #000; color:#ff6d8a; }
+  #gameover .score{ font-size:clamp(24px,8vw,44px); font-weight:900; color:#ffd34e; }
+  #gameover .msg{ font-size:15px; opacity:.9; max-width:320px; line-height:1.7; }
+
+  #hud{ position:absolute; top:0; left:0; right:0; z-index:4; padding:12px 14px;
+    display:flex; justify-content:space-between; align-items:flex-start; color:#fff;
+    pointer-events:none; font-weight:900; text-shadow:0 2px 6px rgba(0,0,0,.6); }
+  #hud .r{ text-align:right; }
+  #score{ font-size:clamp(26px,8vw,40px); line-height:1; }
+  #scoreLbl,#comboLbl{ font-size:11px; font-weight:700; opacity:.7; letter-spacing:2px; }
+  #combo{ font-size:clamp(22px,7vw,34px); line-height:1; color:#ffe27a; }
+  #hearts{ font-size:clamp(20px,6vw,26px); }
+  #hint{ position:absolute; bottom:max(24px,env(safe-area-inset-bottom)); left:0; right:0; text-align:center;
+    color:#fff; opacity:.55; font-size:14px; z-index:4; pointer-events:none; animation:pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{opacity:.3} 50%{opacity:.7} }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <a class="back" href="index.html">← もどる</a>
+
+  <div id="hud" class="hidden">
+    <div><div id="scoreLbl">スコア</div><div id="score">0</div></div>
+    <div class="r"><div id="hearts">🫧🫧🫧</div><div id="comboLbl">コンボ</div><div id="combo">0</div></div>
+  </div>
+  <div id="hint" class="hidden">リズムに あわせて タップ ！</div>
+
+  <div id="title" class="screen">
+    <h1>ツッコミ</h1>
+    <div class="sub">ヘンなやつが 出てくる。<br>リズムに あわせて <b>ばしっ</b> と ツッコめ。</div>
+    <button class="btn" id="startBtn">はじめる</button>
+    <div class="pill" style="text-align:left;">
+      👋 まん中に きた<b>ヘンなやつ</b>を、拍で タップ！<br>
+      <span style="font-size:26px;letter-spacing:2px;">🚽 👁️ 🦷 🧦 🦴</span><br>
+      <span style="opacity:.8;font-size:13px;">見のがすと ボケ っぱなし → 🫧 が へる（3つで おわり）</span>
+    </div>
+  </div>
+
+  <div id="gameover" class="screen hidden">
+    <h2>やめさせて<br>いただきます</h2>
+    <div class="score" id="finalScore">0</div>
+    <div class="msg" id="goMsg"></div>
+    <button class="btn" id="retryBtn">もういっかい</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+(function(){
+/* =====================================================================
+   ツッコミ ― ヘンゲー横丁の一本。野田ゲー的に雑・シュール。
+   絵は絵文字。音は WebAudio 自動生成。単一HTMLで完結(のびーる作法)。
+
+   リズムの芯だけは真面目に: 発音時刻を setTimeout ではなく
+   AudioContext.currentTime に予約し、ヘンなやつの位置も同じ音声時計から
+   引く。だから「拍で中央に来る→拍でタップ」が音とズレない。
+   ===================================================================== */
+
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+let W=0,H=0,DPR=1;
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2.5);
+  W=window.innerWidth; H=window.innerHeight;
+  cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize',resize); resize();
+
+// ---------- audio ----------
+let AC=null;
+function actx(){ if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return AC; }
+function tone(freq,dur,type,vol,at){
+  const ac=actx(); if(!ac) return;
+  const o=ac.createOscillator(), g=ac.createGain();
+  o.type=type||'square'; o.frequency.value=freq; o.connect(g); g.connect(ac.destination);
+  const t=at!=null?at:ac.currentTime;
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(vol||0.18,t+0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+(dur||0.15));
+  o.start(t); o.stop(t+(dur||0.15)+0.02);
+}
+function noise(dur,vol,at){
+  const ac=actx(); if(!ac) return;
+  const n=Math.floor(ac.sampleRate*dur), b=ac.createBuffer(1,n,ac.sampleRate), d=b.getChannelData(0);
+  for(let i=0;i<n;i++) d[i]=(Math.random()*2-1);
+  const s=ac.createBufferSource(); s.buffer=b;
+  const f=ac.createBiquadFilter(); f.type='highpass'; f.frequency.value=1200;
+  const g=ac.createGain(); const t=at!=null?at:ac.currentTime;
+  g.gain.setValueAtTime(vol||0.2,t); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  s.connect(f); f.connect(g); g.connect(ac.destination); s.start(t); s.stop(t+dur+0.02);
+}
+function kickAt(t){ tone(150,0.18,'sine',0.5,t); }
+function hatAt(t){ noise(0.03,0.12,t); }
+function sBashi(){ // ツッコミ命中
+  noise(0.06,0.5); tone(320,0.05,'square',0.3);
+  setTimeout(()=>tone(180,0.08,'square',0.25),40);
+}
+function sMiss(){ tone(160,0.2,'sawtooth',0.22); setTimeout(()=>tone(90,0.28,'sawtooth',0.2),90); }
+function sWhiff(){ tone(400,0.05,'sine',0.08); } // 空振り
+
+// ---------- clock (audio-locked) ----------
+const BPM=112, SPB=60/BPM;
+let t0=0;
+function songTime(){ const ac=actx(); return ac? ac.currentTime - t0 : 0; }
+function beatNow(){ return songTime()/SPB; }
+
+// ---------- game state ----------
+const S={TITLE:0,PLAY:1,OVER:2}; let state=S.TITLE;
+let score=0, mood=3, combo=0, bestCombo=0, hits=0;
+let shake=0, flash=0, flashCol='255,255,255', bgHue=0;
+const bokes=[], parts=[], sfx=[];
+let harisen=0; // 0..1 振りアニメ
+let schedBeat=0, nextSpawnBeat=8, spawnGap=2;
+let schedTimer=null, missShown=0;
+
+// ヘンなやつら(シュール要員)。上のセリフはどうでもいい一言。
+const FACES=["🚽","👁️","🦷","🧦","🦴","👟","🧻","🪨","🍣","🫀","🧠","👃"];
+const LINES=["…","なぁ","みて","ｵﾚ ﾂﾖｲ","ﾎﾟｲﾝﾄ 2ﾊﾞｲ","どう？","ｷﾞｭｲﾝ","ﾊﾞﾌﾞ","しらんけど","うぇい"];
+const BASHI=["ﾊﾞｼｯ!","ﾄﾞｽ!","ｽﾊﾟｰﾝ!","ﾍﾞｼ!","ｺﾞｯ!","ﾊﾞｺ!"];
+
+function reset(){
+  score=0; mood=3; combo=0; bestCombo=0; hits=0; shake=0; flash=0; bgHue=0; harisen=0;
+  bokes.length=0; parts.length=0; sfx.length=0;
+  schedBeat=0; nextSpawnBeat=8; spawnGap=2; missShown=0;
+}
+
+function cx(){ return W*0.5; }
+function lineY(){ return H*0.52; }
+
+// ---------- scheduler: 少し先の未来を音声時計に予約する ----------
+function schedule(){
+  const ac=actx(); if(!ac) return;
+  const horizon = songTime() + 0.2;
+  // 伴奏(拍)を予約
+  while(schedBeat*SPB < horizon){
+    const at = t0 + schedBeat*SPB;
+    if(at >= ac.currentTime){
+      hatAt(at);
+      if(schedBeat%2===0) kickAt(at);
+    }
+    schedBeat++;
+  }
+  // ヘンなやつを、中央到達拍から逆算して湧かせる
+  while(nextSpawnBeat < beatNow()+8){
+    spawnBoke(nextSpawnBeat);
+    // だんだん詰めて難しく(でも下限あり)
+    spawnGap = hits>24 ? 1 : hits>10 ? 1.5 : 2;
+    nextSpawnBeat += spawnGap;
+  }
+}
+
+function spawnBoke(crossBeat){
+  const i=(Math.random()*FACES.length)|0;
+  bokes.push({
+    crossSec: crossBeat*SPB,
+    face:FACES[i],
+    line:LINES[(Math.random()*LINES.length)|0],
+    state:'walk',           // walk / hit / gone
+    vy:0, vx:0, rot:0, spin:0, life:1,
+    bob:(Math.random()*Math.PI*2),
+    scale:1,
+  });
+}
+
+// ---------- input ----------
+function tap(){
+  if(state!==S.PLAY) return;
+  harisen=1;
+  const now=songTime();
+  // 中央に一番近い、まだ生きてるヘンなやつを探す
+  let idx=-1, bd=1e9;
+  for(let i=0;i<bokes.length;i++){
+    const b=bokes[i]; if(b.state!=='walk') continue;
+    const d=Math.abs(b.crossSec-now);
+    if(d<bd){ bd=d; idx=i; }
+  }
+  const WIN=0.20; // 野田ゲーなので判定は甘め
+  if(idx<0 || bd>WIN){ sWhiff(); return; } // 空振り
+  const b=bokes[idx];
+  b.state='hit'; b.vy=-620-Math.random()*160; b.vx=(Math.random()*2-1)*260;
+  b.spin=(Math.random()*2-1)*14; b.scale=1.5;
+  sBashi();
+  hits++; combo++; if(combo>bestCombo) bestCombo=combo;
+  const tight = bd<0.06;
+  score += tight?300:150; if(tight) score+=combo*10;
+  addSfx(cx(), lineY()-30, BASHI[(Math.random()*BASHI.length)|0], tight);
+  burst(cx(), lineY()-20, tight?10:6);
+  shake=Math.min(14, shake+(tight?11:7));
+  flash=0.5; flashCol='255,240,120';
+  bgHue=(bgHue+8)%360;
+}
+
+function addSfx(x,y,text,big){ sfx.push({x,y,text,life:1,big:!!big,vy:-40,rot:(Math.random()*2-1)*8}); }
+function burst(x,y,n){
+  for(let i=0;i<n;i++){ const a=-Math.PI/2+(i/n-0.5)*2.2, sp=200+Math.random()*180;
+    parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,c:'255,225,80'}); }
+}
+
+// ---------- update ----------
+function update(dt){
+  if(state===S.PLAY){ schedule();
+    const now=songTime();
+    for(const b of bokes){
+      if(b.state==='hit'){ b.vy+=1500*dt; b.x=(b.x||cx())+b.vx*dt; b.y=(b.y||lineY())+b.vy*dt; b.rot+=b.spin*dt; b.life-=dt*0.7; if(b.life<=0) b.state='gone'; }
+      else if(b.state==='walk'){
+        // 見逃し: 中央を通り過ぎて窓も過ぎたら ボケ成立でペナルティ
+        if(now - b.crossSec > 0.24){ b.state='gone'; onMiss(); }
+      }
+    }
+    for(let i=bokes.length-1;i>=0;i--) if(bokes[i].state==='gone' && (bokes[i].life<=0 || bokes[i].crossSec<now-1)) bokes.splice(i,1);
+  }
+  harisen=Math.max(0,harisen-dt*6);
+  shake*=Math.pow(0.001,dt); if(shake<0.3) shake=0;
+  flash=Math.max(0,flash-dt*2.6);
+  for(let i=parts.length-1;i>=0;i--){ const p=parts[i]; p.vy+=900*dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt*2; if(p.life<=0) parts.splice(i,1); }
+  for(let i=sfx.length-1;i>=0;i--){ const s=sfx[i]; s.y+=s.vy*dt; s.vy*=0.9; s.life-=dt*1.6; if(s.life<=0) sfx.splice(i,1); }
+}
+
+function onMiss(){
+  combo=0; mood--; sMiss(); shake=Math.min(16,shake+10); flash=0.4; flashCol='255,60,80';
+  addSfx(cx(), lineY()-40, "…", false);
+  updHud();
+  if(mood<=0) gameOver();
+}
+
+// ---------- draw ----------
+function draw(){
+  ctx.save();
+  let ox=0,oy=0; if(shake>0){ ox=(Math.random()*2-1)*shake; oy=(Math.random()*2-1)*shake; }
+  ctx.translate(ox,oy);
+
+  // 背景: コンボで色がにじむシュール床
+  ctx.fillStyle = `hsl(${262+bgHue*0.4},38%,${16+Math.min(hits,20)*0.4}%)`;
+  ctx.fillRect(-20,-20,W+40,H+40);
+  // 雑な地面ライン
+  ctx.strokeStyle='rgba(0,0,0,.5)'; ctx.lineWidth=6;
+  ctx.beginPath(); ctx.moveTo(-10,lineY()+70); ctx.lineTo(W+10,lineY()+66); ctx.stroke();
+
+  // ツッコミライン(中央の目印。雑な縦点線)
+  ctx.strokeStyle='rgba(255,255,255,.14)'; ctx.lineWidth=3; ctx.setLineDash([6,10]);
+  ctx.beginPath(); ctx.moveTo(cx(),lineY()-120); ctx.lineTo(cx(),lineY()+80); ctx.stroke(); ctx.setLineDash([]);
+
+  if(state===S.PLAY || state===S.OVER){
+    const now=songTime();
+    const SPEED = W*0.34; // px/sec。右から来て中央で crossSec
+    // ヘンなやつ
+    for(const b of bokes){
+      let x,y;
+      if(b.state==='walk'){ x=cx()+(b.crossSec-now)*SPEED; y=lineY()+Math.sin(now*6+b.bob)*6; b.x=x; b.y=y; }
+      else { x=b.x||cx(); y=b.y||lineY(); }
+      if(x<-80 || x>W+80) continue;
+      const near = 1 - Math.min(1, Math.abs(b.crossSec-now)/0.4);
+      const sc = (b.scale||1) * (1 + near*0.12);
+      ctx.save(); ctx.translate(x,y); ctx.rotate(b.rot||0); ctx.globalAlpha=Math.max(0,b.life);
+      // セリフ(walk中だけ)
+      if(b.state==='walk'){
+        ctx.globalAlpha=0.9*near+0.25;
+        ctx.fillStyle='#fff'; ctx.font='900 15px sans-serif'; ctx.textAlign='center';
+        ctx.fillText(b.line, 0, -52);
+        ctx.globalAlpha=1;
+      }
+      ctx.font=`${52*sc}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(b.face,0,0);
+      ctx.restore();
+    }
+    // ハリセン(下からの手＋振り)
+    drawHarisen();
+  }
+
+  // 効果音テキスト
+  for(const s of sfx){ ctx.save(); ctx.translate(s.x,s.y); ctx.rotate(s.rot*Math.PI/180); ctx.globalAlpha=Math.max(0,s.life);
+    ctx.font=`900 ${s.big?54:34}px sans-serif`; ctx.textAlign='center';
+    ctx.lineWidth=6; ctx.strokeStyle='#000'; ctx.strokeText(s.text,0,0);
+    ctx.fillStyle=s.big?'#ffe14d':'#fff'; ctx.fillText(s.text,0,0); ctx.restore(); }
+  // 粒
+  for(const p of parts){ ctx.globalAlpha=Math.max(0,p.life); ctx.fillStyle=`rgb(${p.c})`;
+    ctx.beginPath(); ctx.arc(p.x,p.y,3.5*p.life+1,0,7); ctx.fill(); }
+  ctx.globalAlpha=1;
+
+  ctx.restore();
+  if(flash>0){ ctx.fillStyle=`rgba(${flashCol},${flash*0.5})`; ctx.fillRect(0,0,W,H); }
+}
+
+function drawHarisen(){
+  const swing = harisen; // 1で振り下ろした直後
+  const baseX = cx()+70, baseY=H*0.9;
+  const ang = -0.5 - swing*0.9; // 振りで角度変化
+  ctx.save(); ctx.translate(baseX,baseY); ctx.rotate(ang);
+  // 柄
+  ctx.fillStyle='#8a5a2b'; ctx.strokeStyle='#000'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.roundRect(-9,0,18,90,5); ctx.fill(); ctx.stroke();
+  // 扇
+  ctx.beginPath(); ctx.moveTo(-30,0); ctx.lineTo(30,0); ctx.lineTo(22,-96); ctx.lineTo(-22,-96); ctx.closePath();
+  ctx.fillStyle='#f4f0e6'; ctx.fill(); ctx.stroke();
+  ctx.strokeStyle='#d43b2a'; ctx.lineWidth=5;
+  ctx.beginPath(); ctx.moveTo(-12,-8); ctx.lineTo(-9,-92); ctx.moveTo(6,-8); ctx.lineTo(9,-92); ctx.stroke();
+  ctx.restore();
+}
+
+// ---------- HUD / screens ----------
+const el=id=>document.getElementById(id);
+function updHud(){ el('score').textContent=score; el('combo').textContent=combo;
+  el('hearts').textContent='🫧'.repeat(Math.max(0,mood))+'🖤'.repeat(Math.max(0,3-mood)); }
+
+function start(){
+  const ac=actx(); if(ac && ac.state!=='running') ac.resume();
+  reset(); updHud();
+  el('title').classList.add('hidden'); el('gameover').classList.add('hidden');
+  el('hud').classList.remove('hidden'); el('hint').classList.remove('hidden');
+  state=S.PLAY;
+  t0 = (ac?ac.currentTime:0) + 0.15; // 少し先を開始点に
+  if(schedTimer) clearInterval(schedTimer);
+  schedTimer=setInterval(schedule,25);
+}
+function gameOver(){
+  state=S.OVER; if(schedTimer){ clearInterval(schedTimer); schedTimer=null; }
+  el('finalScore').textContent=score;
+  el('goMsg').textContent = hits>30?'ツッコミの キレ 一級':hits>12?'まあまあ ノッてた':'ボケ に 押されぎみ';
+  el('hud').classList.add('hidden'); el('hint').classList.add('hidden');
+  el('gameover').classList.remove('hidden');
+}
+
+el('startBtn').addEventListener('click', e=>{ e.stopPropagation(); start(); });
+el('retryBtn').addEventListener('click', e=>{ e.stopPropagation(); start(); });
+// 画面タップ = ツッコミ(ボタン以外)
+window.addEventListener('pointerdown', e=>{
+  const t = e.target;
+  if(t && t.closest && (t.closest('.btn')||t.closest('.back'))) return;
+  if(state===S.PLAY){ e.preventDefault(); tap(); }
+}, {passive:false});
+
+// ---------- loop ----------
+let tPrev=performance.now();
+function frame(now){
+  const dt=Math.min(0.05,(now-tPrev)/1000); tPrev=now;
+  update(dt); draw();
+  if(state===S.PLAY) updHud();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
