@@ -15,25 +15,26 @@
   <a class="back" href="index.html">← よこちょう</a>
 
   <div id="hud" class="hidden">
-    <div><div class="lbl">スコア</div><div class="big" id="score">0</div></div>
-    <div class="r"><div class="lbl">れんぞく</div><div class="big" id="combo">0</div></div>
+    <div><div class="lbl">できぐあい</div><div class="big" id="deki">ふつう</div></div>
+    <div class="r"><div class="lbl">いま</div><div class="big" id="sect">-</div></div>
   </div>
   <div id="hint" class="hidden">手が ひっこんだ 拍で タップ！ 手が 出てる ときは 打つな！</div>
 
   <div id="title" class="screen">
     <h1>もちつき</h1>
-    <div class="sub">ノッポの 手を つぶさないよう、<br>拍に あわせて 杵を おろせ。</div>
+    <div class="sub">つくほど 話が 変わっていく。<br>相方の 手を つぶすな。</div>
     <button class="btn" id="startBtn">はじめる</button>
     <div class="pill" style="text-align:left;">
-      ・手が <b>ひっこんだ</b>拍で タップ → うまく つける<br>
-      ・手が <b>出てる</b>ときに 打つ → 手を つぶす（きぶん −1）<br>
-      ・きぶん 3つで おわり
+      ・手が <b>ひっこんだ</b>拍で タップ → つける<br>
+      ・手が <b>出てる</b>ときに 打つ → つぶす（相方 ブチギレ）<br>
+      ・途中で <b>もちが おきる</b>・<b>ひっかけ</b>・<b>ラスト</b>… 場面が 変わる<br>
+      ・点数じゃない。<b>できあがりの もち</b>を 見よう
     </div>
   </div>
 
   <div id="gameover" class="screen hidden">
-    <h2>もう やめじゃ</h2>
-    <div class="score" id="finalScore">0</div>
+    <h2 id="goTitle">できた</h2>
+    <div class="score" id="goDeki"></div>
     <div class="msg" id="goMsg"></div>
     <button class="btn" id="retryBtn">もういっかい</button>
   </div>
@@ -43,6 +44,9 @@
 <script>
 "use strict";
 (function(){
+// 実機で万一エラーが出たら、凍結でなく画面に出す(こちらで実行確認できないため)
+addEventListener('error',e=>{ let d=document.getElementById('err'); if(!d){ d=document.createElement('div'); d.id='err';
+  d.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:99;background:#a00;color:#fff;font:12px monospace;padding:8px;border-radius:8px;white-space:pre-wrap'; document.body.appendChild(d);} d.textContent='ERR: '+(e.message||e); });
 const Y=window.Yokocho, D=Y.draw, P=Y.PALETTE;
 const cv=document.getElementById('c'), ctx=cv.getContext('2d');
 let W=0,H=0,DPR=1;
@@ -50,38 +54,66 @@ function resize(){ DPR=Math.min(window.devicePixelRatio||1,2.5); W=innerWidth; H
   cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); }
 addEventListener('resize',resize); resize();
 
+const BPM=100;
 const S={TITLE:0,PLAY:1,OVER:2}; let state=S.TITLE;
-let bpm=100, R=new Y.Rhythm(bpm);
-let score=0, combo=0, mood=3, pounded=0, smashes=0;
+let R=new Y.Rhythm(BPM);
+
+// ── 演目(1プレイ内で変化する台本) ──
+// テンポは一定。手のパターン・餅の状態・掛け声を場面ごとに変える。
+const SCRIPT=[
+  {name:"いくぞ",   beats:8,  pat:"single", mochi:"dough", say:"いくぞー"},
+  {name:"ふつう",   beats:12, pat:"single", mochi:"dough", say:"よいしょ！"},
+  {name:"もちおきた",beats:8,  pat:"single", mochi:"face",  say:"もちが おきた！"},
+  {name:"うらがえし",beats:12, pat:"double", mochi:"face",  say:"はやく かえすぞ！"},
+  {name:"ひっかけ", beats:8,  pat:"faint",  mochi:"face",  say:"ひっかけ 注意！"},
+  {name:"ラスト",   beats:12, pat:"double", mochi:"face",  say:"ラストー！"},
+];
+const START=[]; { let a=0; for(const s of SCRIPT){ START.push(a); a+=s.beats; } START.push(a); }
+const END_BEAT=START[START.length-1];
+
+let secIdx=-1, tight=0, good=0, smash=0, whiff=0;
 let poundAnim=0, poundKind='', mochiSquish=0, handHurt=0, shake=0, flash=0, flashCol='255,255,255';
-const floats=[]; // ふきだし・数字
-let lastVoiceBeat=-9;
+let mochiFaceWake=0, ochi=0, bannerT="", bannerUntil=-9, lastVoiceBeat=-9;
+const floats=[];
 
-function reset(){ score=0; combo=0; mood=3; pounded=0; smashes=0; poundAnim=0; mochiSquish=0; handHurt=0; shake=0; flash=0; floats.length=0; lastVoiceBeat=-9; bpm=100; R=new Y.Rhythm(bpm); }
+function reset(){ R=new Y.Rhythm(BPM); secIdx=-1; tight=good=smash=whiff=0;
+  poundAnim=mochiSquish=handHurt=shake=flash=0; mochiFaceWake=0; ochi=0; bannerT=""; bannerUntil=-9; lastVoiceBeat=-9; floats.length=0; }
 
-// 幾何
 const usuY=()=>H*0.62, cxc=()=>W*0.5;
-// 相方の手の出具合 0..1(拍の裏で1=臼に入る)
-function handIn(ph){ const d=Math.abs(ph-0.5); return Math.max(0,1-d/0.26); }
+function section(){ return SCRIPT[Math.max(0,Math.min(SCRIPT.length-1,secIdx))]; }
 
-// 拍のコールバック: 伴奏＋相方の掛け声
-function onBeat(n,at){
-  Y.sfx.kick(at); Y.sfx.hat(at+ R.spb/2);
-  // 相方は裏で餅を返す。掛け声はたまに(声はズレるので飾り)
-  if(n%4===2) setTimeout(()=>{ if(state===S.PLAY) Y.say("あいよ",{rate:1.3,pitch:1.2,volume:0.9}); }, R.spb*500);
+// 手の出具合 0..1(1=臼の中=打つと危険)。場面のパターンで踊りが変わる。
+function handIn(ph,pat,beatInt){
+  if(pat==="double"){ const d=Math.min(Math.abs(ph-0.25),Math.abs(ph-0.75)); return clamp01(1-d/0.15); }
+  if(pat==="faint"){ const trap=(beatInt%4===3);
+    if(trap){ const d=Math.min(ph,1-ph); return clamp01(1-d/0.2); } // 拍そのものが罠
+    const d=Math.abs(ph-0.5); return clamp01(1-d/0.26); }
+  const d=Math.abs(ph-0.5); return clamp01(1-d/0.26); // single
 }
+// 打っていい位置(拍内)への近さ
+function toTarget(ph,pat){ const ts=pat==="double"?[0,0.5,1]:[0,1]; let m=1; for(const t of ts) m=Math.min(m,Math.abs(ph-t)); return m; }
+function clamp01(v){ return Math.max(0,Math.min(1,v)); }
 
-function start(){
-  Y.audio.resume(); reset(); updHud();
+function onBeat(n,at){ Y.sfx.kick(at); Y.sfx.hat(at+R.spb/2);
+  if(n%4===2) setTimeout(()=>{ if(state===S.PLAY) Y.say("あいよ",{rate:1.3,pitch:1.2,volume:0.85}); }, R.spb*500); }
+
+function start(){ Y.audio.resume(); reset();
   document.getElementById('title').classList.add('hidden');
   document.getElementById('gameover').classList.add('hidden');
   document.getElementById('hud').classList.remove('hidden');
   document.getElementById('hint').classList.remove('hidden');
-  state=S.PLAY; R.start(onBeat);
-}
-function over(){ state=S.OVER; R.stop();
-  document.getElementById('finalScore').textContent=score;
-  document.getElementById('goMsg').textContent = pounded>40?'名人の つき手':pounded>16?'まあまあ ついた':'手ばかり つぶした';
+  state=S.PLAY; R.start(onBeat); }
+
+function finish(){ state=S.OVER; R.stop();
+  const q = tight*3 + good*1 - smash*6;
+  let deki, msg, title;
+  if(smash>=6){ deki="てつや あけ"; msg="手を つぶしすぎ。相方 帰った。"; title="もう やめじゃ"; ochi=2; }
+  else if(q>=40 && smash<=1){ deki="かがみもち 級"; msg="名人の つき手。ツヤツヤ。"; title="めいじん！"; ochi=1; }
+  else if(q>=18){ deki="よい もち"; msg="まあまあ うまく ついた。"; title="できた"; ochi=1; }
+  else { deki="いびつ もち"; msg="へんな かたち に なった。"; title="できた…？"; ochi=3; }
+  document.getElementById('goTitle').textContent=title;
+  document.getElementById('goDeki').textContent=deki;
+  document.getElementById('goMsg').textContent=msg;
   document.getElementById('hud').classList.add('hidden');
   document.getElementById('hint').classList.add('hidden');
   document.getElementById('gameover').classList.remove('hidden');
@@ -90,168 +122,123 @@ function over(){ state=S.OVER; R.stop();
 function tap(){
   if(state!==S.PLAY) return;
   const b=R.beat(); if(b<0) return;
-  const ph=((b%1)+1)%1;
-  const closeBeat=Math.min(ph,1-ph);   // 拍(手が出てない)への近さ
-  const danger=handIn(ph);             // 手の入り具合
+  const sec=section(), ph=((b%1)+1)%1, bi=Math.floor(b);
+  const danger=handIn(ph,sec.pat,bi), close=toTarget(ph,sec.pat);
   poundAnim=1;
 
-  if(danger>0.5){ // 手を つぶした
-    poundKind='smash'; smashes++; combo=0; mood--; handHurt=1;
-    Y.sfx.bad(); Y.say("いたっ！",{interrupt:true,rate:1.2,pitch:1.4});
-    addFloat(cxc()+80, usuY()-30, "ｸﾞｼｬ", '#ff5566', true);
-    shake=16; flash=0.5; flashCol='255,60,80'; updHud();
-    if(mood<=0) over();
-    return;
-  }
-  if(closeBeat<0.12){ // ドンピシャ つけた
-    poundKind='good'; pounded++; combo++;
-    const tight=closeBeat<0.05;
-    score += tight?200:120; if(tight) score+=combo*8;
-    Y.sfx.hit(); if(tight) Y.sfx.good();
-    mochiSquish=1;
-    addFloat(cxc(), usuY()-90, tight?"ﾍﾟｯﾀﾝ!":"ぺたん", tight?P.pop:'#fff', tight);
-    burst(cxc(), usuY()-20, tight?10:6);
-    shake=tight?11:7; flash=0.35; flashCol='255,240,120';
-    // 掛け声(2打に1回くらい。声のズレは味)
-    if(b-lastVoiceBeat>1.5){ lastVoiceBeat=b; Y.say(tight?"よいしょ！":"ほい",{rate:1.25,pitch:0.9,volume:0.9}); }
-    if(pounded%16===0){ bpm=Math.min(150,bpm+8); R.spb=60/bpm; } // だんだん速く
-    updHud();
-    return;
-  }
-  // 中途半端: 空振り(ダメージ無し・連続切れ)
-  poundKind='whiff'; combo=0; Y.sfx.whiff();
-  addFloat(cxc(), usuY()-70, "すかっ", '#c9b98a', false);
-  updHud();
+  if(danger>0.5){ poundKind='smash'; smash++; handHurt=1;
+    Y.sfx.bad(); Y.say(["いたっ！","あぁっ！","ちょっ！"][smash%3],{interrupt:true,rate:1.2,pitch:1.4});
+    addFloat(cxc()+80,usuY()-30,"ｸﾞｼｬ",'#ff5566',true); shake=16; flash=0.5; flashCol='255,60,80';
+    return; }
+  if(close<0.12){ poundKind='good'; const t=close<0.05; if(t) tight++; else good++;
+    Y.sfx.hit(); if(t) Y.sfx.good(); mochiSquish=1;
+    addFloat(cxc(),usuY()-90,t?"ﾍﾟｯﾀﾝ!":"ぺたん",t?P.pop:'#fff',t); burst(cxc(),usuY()-20,t?10:6);
+    shake=t?11:7; flash=0.3; flashCol='255,240,120';
+    if(b-lastVoiceBeat>1.6){ lastVoiceBeat=b; Y.say(t?"よいしょ！":"ほい",{rate:1.25,pitch:0.9,volume:0.85}); }
+    return; }
+  poundKind='whiff'; whiff++; Y.sfx.whiff(); addFloat(cxc(),usuY()-70,"すかっ",'#c9b98a',false);
 }
 
 function addFloat(x,y,text,col,big){ floats.push({x,y,text,col,big:!!big,life:1,vy:-46,rot:(Math.random()*2-1)*8}); }
-function burst(x,y,n){ for(let i=0;i<n;i++){ const a=-Math.PI/2+(i/n-0.5)*2.1, sp=180+Math.random()*160;
+function burst(x,y,n){ for(let i=0;i<n;i++){ const a=-Math.PI/2+(i/n-0.5)*2.1,sp=180+Math.random()*160;
   floats.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,dot:true,col:'244,240,230'}); } }
 
 function update(dt){
-  poundAnim=Math.max(0,poundAnim-dt*5);
-  mochiSquish=Math.max(0,mochiSquish-dt*4);
-  handHurt=Math.max(0,handHurt-dt*2);
-  shake*=Math.pow(0.0015,dt); if(shake<0.3) shake=0;
+  poundAnim=Math.max(0,poundAnim-dt*5); mochiSquish=Math.max(0,mochiSquish-dt*4);
+  handHurt=Math.max(0,handHurt-dt*2); shake*=Math.pow(0.0015,dt); if(shake<0.3)shake=0;
   flash=Math.max(0,flash-dt*2.4);
+  if(section().mochi==="face") mochiFaceWake=Math.min(1,mochiFaceWake+dt*2);
   for(let i=floats.length-1;i>=0;i--){ const f=floats[i];
-    if(f.dot){ f.vy+=900*dt; f.x+=f.vx*dt; f.y+=f.vy*dt; }
-    else { f.y+=f.vy*dt; f.vy*=0.9; }
+    if(f.dot){ f.vy+=900*dt; f.x+=f.vx*dt; f.y+=f.vy*dt; } else { f.y+=f.vy*dt; f.vy*=0.9; }
     f.life-=dt*(f.dot?2:1.4); if(f.life<=0) floats.splice(i,1); }
+
+  if(state===S.PLAY){
+    const b=R.beat();
+    // 場面の進行(1プレイ内の変化)
+    if(b>=0){ let idx=0; while(idx<SCRIPT.length && b>=START[idx+1]) idx++;
+      if(idx!==secIdx && idx<SCRIPT.length){ secIdx=idx; const s=SCRIPT[idx];
+        bannerT=s.name; bannerUntil=b+2.2; document.getElementById('sect').textContent=s.name;
+        Y.say(s.say,{interrupt:true,rate:1.2,pitch:1.05}); } }
+    // できあがり表示(点数でなく質感の言葉)
+    document.getElementById('deki').textContent = smash>=5?"ボロボロ":tight>good+6?"ツヤツヤ":"ふつう";
+    if(b>=END_BEAT) finish();
+  }
 }
 
 function draw(){
-  ctx.save();
-  let ox=0,oy=0; if(shake>0){ ox=(Math.random()*2-1)*shake; oy=(Math.random()*2-1)*shake; }
+  ctx.save(); let ox=0,oy=0; if(shake>0){ ox=(Math.random()*2-1)*shake; oy=(Math.random()*2-1)*shake; }
   ctx.translate(ox,oy);
-
-  // 空と地面
   ctx.fillStyle=P.sky; ctx.fillRect(-20,-20,W+40,H*0.68);
   ctx.fillStyle=P.dirt; ctx.fillRect(-20,H*0.66,W+40,H);
   ctx.strokeStyle=P.ink; ctx.lineWidth=7; ctx.beginPath(); ctx.moveTo(-10,H*0.66); ctx.lineTo(W+10,H*0.66-4); ctx.stroke();
-  // 太陽
-  ctx.fillStyle=P.pop; ctx.strokeStyle=P.ink; ctx.lineWidth=5;
-  ctx.beginPath(); ctx.arc(W*0.14,H*0.14,26,0,7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle=P.pop; ctx.strokeStyle=P.ink; ctx.lineWidth=5; ctx.beginPath(); ctx.arc(W*0.14,H*0.14,26,0,7); ctx.fill(); ctx.stroke();
 
   if(state===S.PLAY||state===S.OVER){
-    const b=state===S.PLAY?R.beat():0;
-    const ph=((b%1)+1)%1, hin=handIn(ph);
-
-    // 臼
-    drawUsu();
-
-    // つき手 ブヨ(左)。杵は poundAnim で下りる
-    D.creature(ctx, P.buyo, {x:W*0.24, y:usuY()-6, scale:1, rot:-0.05,
-      mouthOpen:0.3+poundAnim*0.5, brow:0.4}, D.buyoBody);
+    const b=state===S.PLAY?R.beat():END_BEAT;
+    const sec=section(), ph=((b%1)+1)%1, hin=state===S.PLAY?handIn(ph,sec.pat,Math.floor(b)):0;
+    drawUsu(sec);
+    D.creature(ctx,P.buyo,{x:W*0.24,y:usuY()-6,scale:1,rot:-0.05,mouthOpen:0.3+poundAnim*0.5,brow:0.4},D.buyoBody);
     drawKine();
-
-    // 返し手 ノッポ(右)。手の出具合 hin で臼へ
-    const hurt = handHurt>0;
-    D.creature(ctx, P.noppo, {x:W*0.8, y:usuY()+4, scale:0.95, rot:0.05, neck:34,
-      mouthOpen:hurt?0.9:(hin>0.5?0.4:0.1), brow:hurt?-0.8:0.2, dead:hurt&&handHurt>0.5}, D.noppoBody);
-    drawHand(hin, hurt);
+    const hurt=handHurt>0;
+    D.creature(ctx,P.noppo,{x:W*0.8,y:usuY()+4,scale:0.95,rot:0.05,neck:34,
+      mouthOpen:hurt?0.9:(hin>0.5?0.4:0.1),brow:hurt?-0.8:(sec.pat==="faint"?0.6:0.2),dead:hurt&&handHurt>0.5},D.noppoBody);
+    drawHand(hin,hurt);
   }
 
-  // ふきだし・粒
-  for(const f of floats){
-    ctx.globalAlpha=Math.max(0,f.life);
+  for(const f of floats){ ctx.globalAlpha=Math.max(0,f.life);
     if(f.dot){ ctx.fillStyle=`rgba(${f.col},${f.life})`; ctx.beginPath(); ctx.arc(f.x,f.y,3.5*f.life+1,0,7); ctx.fill(); }
-    else { ctx.save(); ctx.translate(f.x,f.y); ctx.rotate(f.rot*Math.PI/180);
-      ctx.font=`900 ${f.big?46:28}px sans-serif`; ctx.textAlign='center';
-      ctx.lineWidth=6; ctx.strokeStyle=P.ink; ctx.strokeText(f.text,0,0);
-      ctx.fillStyle=f.col; ctx.fillText(f.text,0,0); ctx.restore(); }
-  }
+    else { ctx.save(); ctx.translate(f.x,f.y); ctx.rotate(f.rot*Math.PI/180); ctx.font=`900 ${f.big?46:28}px sans-serif`;
+      ctx.textAlign='center'; ctx.lineWidth=6; ctx.strokeStyle=P.ink; ctx.strokeText(f.text,0,0);
+      ctx.fillStyle=f.col; ctx.fillText(f.text,0,0); ctx.restore(); } }
   ctx.globalAlpha=1;
 
-  // きぶん(手描きの玉。絵文字は使わない)
-  drawMood();
+  // 場面名バナー
+  if(state===S.PLAY && R.beat()<bannerUntil){ ctx.save(); ctx.translate(W/2,H*0.3); ctx.rotate(-0.04);
+    ctx.font='900 40px sans-serif'; ctx.textAlign='center'; ctx.lineWidth=8; ctx.strokeStyle=P.ink;
+    ctx.strokeText(bannerT,0,0); ctx.fillStyle=P.pop; ctx.fillText(bannerT,0,0); ctx.restore(); }
 
   ctx.restore();
   if(flash>0){ ctx.fillStyle=`rgba(${flashCol},${flash*0.5})`; ctx.fillRect(0,0,W,H); }
 }
 
-function drawUsu(){
-  const x=cxc(), y=usuY();
-  ctx.save(); ctx.translate(x,y);
-  ctx.beginPath(); ctx.moveTo(-82,-4); ctx.quadraticCurveTo(-82,50,0,50);
-  ctx.quadraticCurveTo(82,50,82,-4); ctx.quadraticCurveTo(70,-24,0,-24);
-  ctx.quadraticCurveTo(-70,-24,-82,-4); D.fillInk(ctx,'#3a2a1a',7);
+function drawUsu(sec){
+  const x=cxc(),y=usuY(); ctx.save(); ctx.translate(x,y);
+  ctx.beginPath(); ctx.moveTo(-82,-4); ctx.quadraticCurveTo(-82,50,0,50); ctx.quadraticCurveTo(82,50,82,-4);
+  ctx.quadraticCurveTo(70,-24,0,-24); ctx.quadraticCurveTo(-70,-24,-82,-4); D.fillInk(ctx,'#3a2a1a',7);
   ctx.beginPath(); ctx.ellipse(0,-8,74,20,0,0,7); D.fillInk(ctx,'#5a4428',5);
-  // もち(つくほど まるく)
-  const round=Math.min(1,pounded/24), sq=1-mochiSquish*0.4;
-  ctx.save(); ctx.scale(1+mochiSquish*0.25, sq);
+  const round=Math.min(1,(tight+good)/24), sq=1-mochiSquish*0.4;
+  ctx.save(); ctx.scale(1+mochiSquish*0.25,sq);
   ctx.beginPath();
   if(round>0.6){ ctx.ellipse(0,-14,44,26,0,0,7); }
-  else { ctx.moveTo(-44,-12); ctx.quadraticCurveTo(-52,-34,-20,-40);
-    ctx.quadraticCurveTo(6,-48,26,-38); ctx.quadraticCurveTo(50,-30,40,-12);
-    ctx.quadraticCurveTo(0,4,-44,-12); }
-  D.fillInk(ctx,P.paper,5); ctx.restore();
-  ctx.restore();
+  else { ctx.moveTo(-44,-12); ctx.quadraticCurveTo(-52,-34,-20,-40); ctx.quadraticCurveTo(6,-48,26,-38);
+    ctx.quadraticCurveTo(50,-30,40,-12); ctx.quadraticCurveTo(0,4,-44,-12); }
+  D.fillInk(ctx,P.paper,5);
+  // もちが おきる: 顔が出る(場面の変化)
+  if(sec && sec.mochi==="face" && mochiFaceWake>0.05){ ctx.globalAlpha=mochiFaceWake;
+    ctx.fillStyle=P.ink; ctx.beginPath(); ctx.arc(-12,-18,3.5,0,7); ctx.arc(12,-18,3.5,0,7); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-9,-8); ctx.quadraticCurveTo(0,-8+poundAnim*8,9,-8); ctx.lineWidth=3; ctx.strokeStyle=P.ink; ctx.stroke();
+    ctx.globalAlpha=1; }
+  ctx.restore(); ctx.restore();
 }
-function drawKine(){
-  const down=poundAnim; // 1で臼に当たる
-  const topY=usuY()-190+down*150;
-  const x=cxc()-4+ (poundKind==='smash'?46:0);
+function drawKine(){ const down=poundAnim, topY=usuY()-190+down*150, x=cxc()-4+(poundKind==='smash'?46:0);
   ctx.save(); ctx.translate(x,topY); ctx.rotate(-0.12*(1-down));
   ctx.beginPath(); ctx.roundRect(-9,0,18,150,6); D.fillInk(ctx,'#a9793f',5);
-  ctx.beginPath(); ctx.roundRect(-34,-40,68,46,12); D.fillInk(ctx,'#c99a55',6);
-  ctx.restore();
-  if(down>0.85){ // 当たった衝撃線
-    ctx.strokeStyle='rgba(255,255,255,.7)'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.roundRect(-34,-40,68,46,12); D.fillInk(ctx,'#c99a55',6); ctx.restore();
+  if(down>0.85){ ctx.strokeStyle='rgba(255,255,255,.7)'; ctx.lineWidth=4;
     for(let i=0;i<4;i++){ const a=(-0.5-i*0.5); ctx.beginPath();
-      ctx.moveTo(cxc()+Math.cos(a)*30, usuY()-30+Math.sin(a)*10);
-      ctx.lineTo(cxc()+Math.cos(a)*60, usuY()-40+Math.sin(a)*20); ctx.stroke(); }
-  }
+      ctx.moveTo(cxc()+Math.cos(a)*30,usuY()-30+Math.sin(a)*10); ctx.lineTo(cxc()+Math.cos(a)*60,usuY()-40+Math.sin(a)*20); ctx.stroke(); } }
 }
-function drawHand(hin, hurt){
-  // ノッポの右手が臼へ。hin=1で餅に触れる。hurt で震える
-  const x0=W*0.8-30, y0=usuY()+20;
-  const tx=cxc()+30, ty=usuY()-14;
-  const px=x0+(tx-x0)*hin, py=y0+(ty-y0)*hin + (hurt?(Math.random()*2-1)*4:0);
-  ctx.strokeStyle=P.ink; ctx.lineWidth=10; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(px,py); ctx.stroke();
-  ctx.fillStyle=hurt?'#ff8a8a':P.noppo; ctx.strokeStyle=P.ink; ctx.lineWidth=4;
-  ctx.beginPath(); ctx.arc(px,py,12,0,7); ctx.fill(); ctx.stroke();
-}
-function drawMood(){
-  const x=W-30, y=64;
-  for(let i=0;i<3;i++){ const on=i<mood; ctx.save(); ctx.translate(x-i*30,y);
-    ctx.beginPath(); ctx.moveTo(0,-8); ctx.quadraticCurveTo(-13,-8,-13,3);
-    ctx.quadraticCurveTo(-13,15,0,20); ctx.quadraticCurveTo(13,15,13,3);
-    ctx.quadraticCurveTo(13,-8,0,-8);
-    if(on){ ctx.fillStyle=P.pop; ctx.fill(); } ctx.strokeStyle=on?P.ink:'#6b5a2a'; ctx.lineWidth=3; ctx.stroke();
-    ctx.restore(); }
+function drawHand(hin,hurt){ const x0=W*0.8-30,y0=usuY()+20,tx=cxc()+30,ty=usuY()-14;
+  const px=x0+(tx-x0)*hin,py=y0+(ty-y0)*hin+(hurt?(Math.random()*2-1)*4:0);
+  ctx.strokeStyle=P.ink; ctx.lineWidth=10; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(px,py); ctx.stroke();
+  ctx.fillStyle=hurt?'#ff8a8a':P.noppo; ctx.strokeStyle=P.ink; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(px,py,12,0,7); ctx.fill(); ctx.stroke();
 }
 
-function updHud(){ document.getElementById('score').textContent=score; document.getElementById('combo').textContent=combo; }
-
-// 入力
 document.getElementById('startBtn').addEventListener('click',e=>{e.stopPropagation();start();});
 document.getElementById('retryBtn').addEventListener('click',e=>{e.stopPropagation();start();});
 addEventListener('pointerdown',e=>{ const t=e.target;
   if(t&&t.closest&&(t.closest('.btn')||t.closest('.back'))) return;
-  if(state===S.PLAY){ e.preventDefault(); tap(); }
-},{passive:false});
+  if(state===S.PLAY){ e.preventDefault(); tap(); } },{passive:false});
 
 let tPrev=performance.now();
 function frame(now){ const dt=Math.min(0.05,(now-tPrev)/1000); tPrev=now; update(dt); draw(); requestAnimationFrame(frame); }
