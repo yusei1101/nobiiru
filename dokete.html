@@ -109,7 +109,7 @@ function buildLevels(){
   const g=document.getElementById('lvgrid'); g.innerHTML="";
   const mc=maxCleared();
   for(let i=1;i<=MAXLV;i++){
-    const unlocked = i<=mc+1;
+    const unlocked = true; // 最初から 全レベル 遊べる(ロックしない)
     const b=document.createElement('div'); b.className="lv"+(unlocked?"":" lock");
     const cfg=getLevel(i);
     b.innerHTML = (i<=mc?'<div class="ck">クリア</div>':'') + i + '<small>'+cfg[1]+'びょう</small>';
