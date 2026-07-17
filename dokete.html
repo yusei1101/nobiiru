@@ -100,7 +100,10 @@ function maxCleared(){ try{ return parseInt(localStorage.getItem(STORE)||"0",10)
 function setCleared(lv){ try{ if(lv>maxCleared()) localStorage.setItem(STORE,String(lv)); }catch(e){} }
 
 const S={TITLE:0,LEVELS:1,PLAY:2,OVER:3}; let state=S.TITLE;
-let lv=1, surviveSec=10, tellDur=0.5, remain=0, grace=1.2, shake=0, flash=0, tSec=0;
+let lv=1, surviveSec=10, tellDur=0.5, remain=0, grace=1.2, shake=0, flash=0, flashCol='255,60,80', tSec=0;
+// 面白さの核: ギリギリ緊張(ニアミス) と 意外な展開(イベント)
+let score=0, combo=0, slowmo=0, eventT=0, dashT=0, darkT=0, bannerT="", bannerU=0;
+const floats=[];
 const npcs=[]; const player={x:0,y:0,dir:1,anim:0,moving:false};
 let dragging=false, lastX=0, lastY=0;
 
@@ -140,6 +143,8 @@ function startLevel(n){
       npcs.push(makeNpc("talk",px,cyg)); } left-=nn; }
 
   player.x=W/2; player.y=(bandTop()+bandBot())/2; player.dir=1; player.anim=0;
+  score=0; combo=0; slowmo=0; dashT=0; darkT=0; bannerT=""; bannerU=0; floats.length=0;
+  eventT=5+rnd()*3; // 最初のイベントまで
   document.getElementById('lvNum').textContent=n;
   document.getElementById('levels').classList.add('hidden');
   document.getElementById('title').classList.add('hidden');
@@ -154,7 +159,7 @@ function makeNpc(type,x,y){
   return { type, x, y, dir:rnd()<.5?1:-1, spd:speedOf[type],
     cloth:rc(CLOTH), skin:rc(SKIN), hair:rc(HAIR), hasBag:!isChild&&rnd()<.3,
     scale: isChild?0.5+rnd()*0.12:0.85+rnd()*0.33,
-    anim:rnd()*6, moving:true, targetY:y, laneTimer:rnd()*3,
+    anim:rnd()*6, moving:true, targetY:y, laneTimer:rnd()*3, graze:0, giant:false,
     actionTimer:2+rnd()*3, stopped:false, stoppedTimer:0, poseStretch:false, bursting:false, burstTimer:0 };
 }
 const nrad=n=>K.NR*n.scale;
@@ -197,31 +202,64 @@ function updNpc(n,dt){
   clampY(n);
 }
 
+// ── 意外な展開: 予測不能なイベントが声で降ってくる ──
+const EVENTS=[
+  {say:"みんな ダッシュ！", go:()=>{ dashT=1.6; }},
+  {say:"ぎゃくてん！",       go:()=>{ for(const n of npcs) n.dir*=-1; }},
+  {say:"くらやみ！",         go:()=>{ darkT=2.2; }},
+  {say:"でかいの きた！",   go:()=>{ const y=bandTop()+K.NR+rnd()*(bandBot()-bandTop()-K.NR*2);
+    const n=makeNpc("slow", rnd()<.5?-60:W+60, y); n.giant=true; n.scale=2.2; npcs.push(n); }},
+  {say:"うわっ 多い！",     go:()=>{ for(let i=0;i<6;i++){ const y=bandTop()+K.NR+rnd()*(bandBot()-bandTop()-K.NR*2);
+    npcs.push(makeNpc(rc(["runner","normal","child"]), rnd()<.5?-40:W+40, y)); } }},
+];
+function fireEvent(){ const e=EVENTS[(rnd()*EVENTS.length)|0]; e.go();
+  bannerT=e.say; bannerU=tSec+2.0; Y.say(e.say,{char:rc(['neesan','niisan','baa']),interrupt:true}); shake=Math.max(shake,10); }
+
 function update(dt){
   if(state!==S.PLAY) return;
   tSec+=dt; if(grace>0) grace-=dt;
   shake*=Math.pow(0.002,dt); if(shake<0.3)shake=0; flash=Math.max(0,flash-dt*2.4);
-  for(const n of npcs) updNpc(n,dt);
-  // 当たり(縦長楕円)。1回で即アウト。
+  slowmo=Math.max(0,slowmo-dt); dashT=Math.max(0,dashT-dt); darkT=Math.max(0,darkT-dt);
+  for(let i=floats.length-1;i>=0;i--){ const f=floats[i]; f.y+=f.vy*dt; f.vy*=0.9; f.life-=dt*1.6; if(f.life<=0) floats.splice(i,1); }
+
+  // 世界の時間はスロー時に遅く(ニアミスの気持ちよさ)。ダッシュ中は速く。
+  const wdt = dt * (slowmo>0?0.35:1) * (dashT>0?1.8:1);
+  for(const n of npcs){ updNpc(n,wdt); if(n.graze>0) n.graze-=dt; }
+
+  // イベント(意外な展開)
+  eventT-=dt; if(eventT<=0){ fireEvent(); eventT=6+rnd()*4; }
+
+  // 当たり＆ニアミス(ギリギリ緊張)
   if(grace<=0){ const pRx=K.PR*0.34, pRy=K.PR*0.72;
     for(const n of npcs){ const r=nrad(n), nRx=r*0.34, nRy=r*0.72, rx=pRx+nRx, ry=pRy+nRy;
-      const dx=n.x-player.x, dy=n.y-player.y;
-      if((dx*dx)/(rx*rx)+(dy*dy)/(ry*ry)<1){ fail(); return; } } }
+      const dx=n.x-player.x, dy=n.y-player.y; const d=(dx*dx)/(rx*rx)+(dy*dy)/(ry*ry);
+      if(d<1){ fail(); return; }
+      // すり抜け: 当たらないギリギリ(1〜2.6倍)を すると ボーナス
+      else if(d<2.6 && n.graze<=0 && n.moving){ nearMiss(n); }
+    } }
   remain-=dt;
   if(remain<=0){ remain=0; clear(); }
+}
+
+function nearMiss(n){
+  n.graze=0.9; combo++; score += 10*Math.min(combo,20);
+  slowmo=Math.max(slowmo,0.16); flash=Math.max(flash,0.18); flashCol='120,220,255';
+  // すり抜けの「ヒュッ」
+  Y.audio.noise(0.05,0.12,undefined,5000); Y.audio.tone(1200,0.04,'sine',0.08);
+  floats.push({x:player.x, y:player.y-28, text: combo>1?("ギリギリ x"+combo):"ギリギリ", col:'#7fe0ff', life:1, vy:-40});
 }
 
 const SUMI=['neesan','niisan','baa','chibi']; let sumiI=0;
 function fail(){ state=S.OVER; shake=18; flash=0.6; Y.sfx.bad();
   Y.say("すみませんっ！",{char:SUMI[(sumiI++)%SUMI.length],interrupt:true});
   document.getElementById('goTitle').textContent="ぶつかった";
-  document.getElementById('goSub').textContent="Lv"+lv+" しっぱい";
-  document.getElementById('goMsg').textContent="人混みに のまれた。もういっかい。";
+  document.getElementById('goSub').textContent="スコア "+score;
+  document.getElementById('goMsg').textContent="ギリギリを ねらうほど 高得点。もういっかい。";
   endScreen(); }
 function clear(){ state=S.OVER; setCleared(lv); Y.say("ぶじ ぬけたー",{char:'niisan',interrupt:true});
   document.getElementById('goTitle').textContent="ぬけた！";
-  document.getElementById('goSub').textContent="Lv"+lv+" クリア";
-  document.getElementById('goMsg').textContent = lv>=MAXLV?"全レベル 制覇。名人。":"つぎの レベルが 開いた。";
+  document.getElementById('goSub').textContent="スコア "+score;
+  document.getElementById('goMsg').textContent = lv>=MAXLV?"全レベル 制覇。名人。":"ギリギリ を ねらうと もっと 伸びる。";
   endScreen(); }
 function endScreen(){ document.getElementById('hud').classList.add('hidden'); document.getElementById('hint').classList.add('hidden');
   document.getElementById('gameover').classList.remove('hidden'); }
@@ -245,8 +283,29 @@ function draw(){
     ctx.fillStyle="#b4003f"; ctx.beginPath(); const ty=player.y-K.PR*2.3;
     ctx.moveTo(player.x-K.PR*0.5,ty); ctx.lineTo(player.x+K.PR*0.5,ty); ctx.lineTo(player.x,ty+K.PR*0.6); ctx.closePath(); ctx.fill();
   }
+  // ニアミスの「ギリギリ」文字
+  for(const f of floats){ ctx.globalAlpha=Math.max(0,f.life); ctx.save(); ctx.translate(f.x,f.y);
+    ctx.font='900 22px sans-serif'; ctx.textAlign='center'; ctx.lineWidth=6; ctx.strokeStyle=P.ink;
+    ctx.strokeText(f.text,0,0); ctx.fillStyle=f.col; ctx.fillText(f.text,0,0); ctx.restore(); }
+  ctx.globalAlpha=1;
   ctx.restore();
-  if(flash>0){ ctx.fillStyle=`rgba(255,60,80,${flash*0.5})`; ctx.fillRect(0,0,W,H); }
+
+  // くらやみイベント: プレイヤー周りだけ見える
+  if(darkT>0){ const a=Math.min(0.82, darkT*0.5+0.2); const g=ctx.createRadialGradient(player.x,player.y,10,player.x,player.y,Math.max(W,H)*0.28);
+    g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,`rgba(5,4,12,${a})`); ctx.fillStyle=g; ctx.fillRect(0,0,W,H); }
+  if(flash>0){ ctx.fillStyle=`rgba(${flashCol},${flash*0.5})`; ctx.fillRect(0,0,W,H); }
+
+  // スコア＆コンボ(左下)・イベントバナー(中央)
+  if(state===S.PLAY){
+    ctx.fillStyle=P.ink; ctx.font='900 26px sans-serif'; ctx.textAlign='left';
+    ctx.fillText(String(score), 16, H-22);
+    ctx.font='700 12px sans-serif'; ctx.fillText('スコア', 16, H-42);
+    if(combo>1){ ctx.fillStyle='#1a7fb0'; ctx.font='900 20px sans-serif'; ctx.textAlign='right';
+      ctx.fillText(combo+' れんぞく', W-16, H-22); }
+    if(tSec<bannerU){ ctx.save(); ctx.translate(W/2,H*0.42); ctx.rotate(-0.03);
+      ctx.font='900 40px sans-serif'; ctx.textAlign='center'; ctx.lineWidth=9; ctx.strokeStyle=P.ink;
+      ctx.strokeText(bannerT,0,0); ctx.fillStyle=P.pop; ctx.fillText(bannerT,0,0); ctx.restore(); }
+  }
 }
 function drawBuildings(){ const bw=64, top=bandTop();
   for(let i=0,x=-20; x<W+40; i++,x+=bw){ const h=top*(0.45+((i*7)%5)*0.09);
@@ -295,6 +354,17 @@ let tPrev=performance.now();
 function frame(now){ const dt=Math.min(0.05,(now-tPrev)/1000); tPrev=now; update(dt);
   if(state===S.PLAY) document.getElementById('time').textContent=Math.ceil(remain); draw(); requestAnimationFrame(frame); }
 requestAnimationFrame(frame);
+
+// テスト用フック(ループ内ロジックの検証。実機描画を見られないため)
+window.__dk = {
+  begin(){ startLevel(1); grace=0; },
+  put(x,y){ player.x=x; player.y=y; },
+  clearNpcs(){ npcs.length=0; },
+  addNpc(x,y,type){ npcs.push(makeNpc(type||"normal",x,y)); },
+  step(dt){ update(dt); return this.snap(); },
+  fire(){ eventT=0; update(0.016); return {banner:bannerT, dashT, darkT, npcs:npcs.length}; },
+  snap(){ return {state,score,combo,slowmo:+slowmo.toFixed(3),eventT:+eventT.toFixed(2),npcs:npcs.length}; }
+};
 })();
 </script>
 </body>
