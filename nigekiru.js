@@ -22,10 +22,14 @@ function interp(o,t){ const fx=o.fx!=null?o.fx:o.x, fy=o.fy!=null?o.fy:o.y;
 
 // 盤の画面配置
 let cell=40, cellY=26, ox=0, oy=0;
-function layout(){ const availW=W-24, availH=H*0.64;
-  cell=Math.floor(Math.min(availW/COLS, availH/(ROWS*0.62)));
-  cellY=Math.floor(cell*0.62);           // 行を圧縮=斜め見下ろし(立体)
-  ox=Math.floor((W-cell*COLS)/2); oy=Math.floor(H*0.13); }
+function layout(){ const availW=W-10, availH=H*0.78;
+  cell=Math.floor(Math.min(availW/COLS, availH/(ROWS*0.6)));
+  cellY=Math.floor(cell*0.6);            // 行を圧縮=斜め見下ろし(立体)
+  const bh=ROWS*cellY; ox=Math.floor((W-cell*COLS)/2); oy=Math.floor((H-bh)*0.4); }
+// 色を明暗させる(立体の陰影用)。hex文字列 → rgb文字列
+function shade(hex, amt){ const n=parseInt(hex.slice(1),16); let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+  if(amt>=0){ r+=(255-r)*amt; g+=(255-g)*amt; b+=(255-b)*amt; } else { const f=1+amt; r*=f; g*=f; b*=f; }
+  return 'rgb('+(r|0)+','+(g|0)+','+(b|0)+')'; }
 
 const key=(x,y)=>x+","+y;
 const inGrid=(x,y)=>x>=0&&x<COLS&&y>=0&&y<ROWS;
@@ -116,18 +120,27 @@ function updHud(){ document.getElementById('lv').textContent=level; document.get
 function cx(x){ return ox+x*cell+cell/2; } function cy(y){ return oy+y*cellY+cellY/2; }
 function draw(){
   ctx.save(); let sx=0,sy=0; if(shake>0){ sx=(Math.random()*2-1)*shake; sy=(Math.random()*2-1)*shake; } ctx.translate(sx,sy);
-  ctx.fillStyle="#cfc6b0"; ctx.fillRect(-20,-20,W+40,H+40);
-  const bw=COLS*cell, bh=ROWS*cellY, th=Math.max(14,cell*0.34);
+  const bw=COLS*cell, bh=ROWS*cellY, th=Math.max(18,cell*0.42);
+  // テーブル(木目風グラデ＝画面いっぱいの空間)
+  const tg=ctx.createLinearGradient(0,-40,0,H+40); tg.addColorStop(0,'#8a6d47'); tg.addColorStop(1,'#584631');
+  ctx.fillStyle=tg; ctx.fillRect(-40,-40,W+80,H+80);
+  // 板がテーブルに落とす影(リアル感)
+  ctx.fillStyle='rgba(0,0,0,.32)'; ctx.beginPath();
+  ctx.ellipse(ox+bw/2+cell*0.25, oy+bh+th+cell*0.1, bw*0.58, cell*1.0, 0,0,7); ctx.fill();
   // 盤の厚み(前面＝立体)
-  ctx.fillStyle="#a89a78"; ctx.fillRect(ox-3,oy+bh,bw+6,th);
+  ctx.fillStyle="#8f7c58"; ctx.fillRect(ox-4,oy+bh,bw+8,th);
+  ctx.fillStyle="#7a684a"; ctx.fillRect(ox-4,oy+bh+th*0.6,bw+8,th*0.4); // 下側は暗く
   // 盤面(斜め見下ろし。行を圧縮)
   for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){ ctx.fillStyle=(x+y)%2?"#ded5bf":"#efe8d6";
     ctx.fillRect(ox+x*cell,oy+y*cellY,cell,cellY); }
+  // 盤面のライティング(上明・下暗＝光が当たってる感じ)
+  const lg=ctx.createLinearGradient(0,oy,0,oy+bh); lg.addColorStop(0,'rgba(255,250,235,.16)'); lg.addColorStop(1,'rgba(0,0,0,.16)');
+  ctx.fillStyle=lg; ctx.fillRect(ox,oy,bw,bh);
   ctx.strokeStyle="rgba(0,0,0,.10)"; ctx.lineWidth=1;
   for(let x=0;x<=COLS;x++){ ctx.beginPath(); ctx.moveTo(ox+x*cell,oy); ctx.lineTo(ox+x*cell,oy+bh); ctx.stroke(); }
   for(let y=0;y<=ROWS;y++){ ctx.beginPath(); ctx.moveTo(ox,oy+y*cellY); ctx.lineTo(ox+bw,oy+y*cellY); ctx.stroke(); }
   ctx.strokeStyle=P.ink; ctx.lineWidth=5; ctx.strokeRect(ox,oy,bw,bh);
-  ctx.beginPath(); ctx.moveTo(ox-3,oy+bh+th); ctx.lineTo(ox+bw+3,oy+bh+th); ctx.lineTo(ox+bw+3,oy+bh); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ox-4,oy+bh+th); ctx.lineTo(ox+bw+4,oy+bh+th); ctx.lineTo(ox+bw+4,oy+bh); ctx.stroke();
 
   if(state===S.PLAY && phase==='idle'){ // 動けるマスを薄く光らせる(入力待ちだけ)
     for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){ const nx=player.x+dx, ny=player.y+dy;
@@ -162,11 +175,14 @@ function draw(){
     ctx.font=`900 ${f.big?42:24}px sans-serif`; ctx.textAlign='center'; ctx.lineWidth=8; ctx.strokeStyle=P.ink;
     ctx.strokeText(f.text,0,0); ctx.fillStyle=f.col; ctx.fillText(f.text,0,0); ctx.restore(); }
   ctx.globalAlpha=1;
-  // テレポ ボタン
-  if(state===S.PLAY) drawTele();
+  // 周辺減光(空気感)。盤の世界を暗く縁取る
+  const vg=ctx.createRadialGradient(W/2,H*0.46,Math.min(W,H)*0.28, W/2,H*0.46,Math.max(W,H)*0.72);
+  vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,.34)'); ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+  if(flash>0){ ctx.fillStyle=`rgba(${flashCol},${flash*0.5})`; ctx.fillRect(0,0,W,H); }
+  // UI(減光の上=最前面)
   if(msgT>0){ ctx.save(); ctx.translate(W/2,oy-24); ctx.font='900 30px sans-serif'; ctx.textAlign='center';
     ctx.lineWidth=7; ctx.strokeStyle=P.ink; ctx.strokeText(msg,0,0); ctx.fillStyle=P.pop; ctx.fillText(msg,0,0); ctx.restore(); }
-  if(flash>0){ ctx.fillStyle=`rgba(${flashCol},${flash*0.5})`; ctx.fillRect(0,0,W,H); }
+  if(state===S.PLAY) drawTele();
 }
 function drawGridPerson(px,py,cell,color,angry){
   const r=cell*0.3; ctx.save(); ctx.translate(px,py+cell*0.08);
@@ -174,8 +190,12 @@ function drawGridPerson(px,py,cell,color,angry){
   ctx.beginPath(); ctx.moveTo(-r*0.4,r*0.5); ctx.lineTo(-r*0.4,r*1.1); ctx.moveTo(r*0.4,r*0.5); ctx.lineTo(r*0.4,r*1.1); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(-r*0.7,r*0.6); ctx.quadraticCurveTo(-r*0.8,-r*0.3,0,-r*0.4);
   ctx.quadraticCurveTo(r*0.8,-r*0.3,r*0.7,r*0.6); ctx.quadraticCurveTo(0,r*0.8,-r*0.7,r*0.6);
-  ctx.fillStyle=color; ctx.fill(); ctx.lineWidth=Math.max(2,r*0.2); ctx.strokeStyle=P.ink; ctx.stroke();
-  ctx.beginPath(); ctx.arc(0,-r*0.7,r*0.55,0,7); ctx.fillStyle="#f0c29a"; ctx.fill(); ctx.stroke();
+  // 立体感: 左上が明るく右下が暗い陰影グラデ
+  const bg=ctx.createLinearGradient(-r*0.6,-r*0.4,r*0.6,r*0.6);
+  bg.addColorStop(0,shade(color,0.28)); bg.addColorStop(0.55,color); bg.addColorStop(1,shade(color,-0.32));
+  ctx.fillStyle=bg; ctx.fill(); ctx.lineWidth=Math.max(2,r*0.2); ctx.strokeStyle=P.ink; ctx.stroke();
+  const hg=ctx.createLinearGradient(0,-r*1.1,0,-r*0.3); hg.addColorStop(0,"#ffe0c0"); hg.addColorStop(1,"#dca878");
+  ctx.beginPath(); ctx.arc(0,-r*0.7,r*0.55,0,7); ctx.fillStyle=hg; ctx.fill(); ctx.stroke();
   ctx.beginPath(); ctx.arc(0,-r*0.8,r*0.57,Math.PI*1.05,Math.PI*1.95); ctx.fillStyle="#2b2320"; ctx.fill();
   ctx.fillStyle=P.ink; ctx.beginPath(); ctx.arc(-r*0.2,-r*0.72,r*0.1,0,7); ctx.arc(r*0.2,-r*0.72,r*0.1,0,7); ctx.fill();
   if(angry){ ctx.strokeStyle=P.ink; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-r*0.35,-r*0.95); ctx.lineTo(-r*0.1,-r*0.82); ctx.moveTo(r*0.35,-r*0.95); ctx.lineTo(r*0.1,-r*0.82); ctx.stroke(); }
