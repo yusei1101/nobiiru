@@ -66,24 +66,40 @@ window.Yokocho = (function(){
   }
 
   // ---------------- 声(SpeechSynthesis) ----------------
-  let _voice=null;
-  function pickVoice(){
-    if(!("speechSynthesis"in window)) return null;
-    if(_voice) return _voice;
+  // 声のバリエーション: 端末の日本語音声を複数使い分け＋キャラごとに rate/pitch を変える。
+  let _vlist=null;
+  function jaVoices(){ if(!("speechSynthesis"in window)) return [];
+    if(_vlist) return _vlist;
     const vs=speechSynthesis.getVoices();
-    _voice = vs.find(v=>/ja[-_]?JP/i.test(v.lang)) || vs.find(v=>/^ja/i.test(v.lang)) || null;
-    return _voice;
+    _vlist = vs.filter(v=>/^ja/i.test(v.lang)); return _vlist; }
+  if("speechSynthesis"in window){ try{ speechSynthesis.onvoiceschanged=()=>{ _vlist=null; jaVoices(); }; }catch(e){} }
+  // 男女で別の音声を選ぶ(名前で当たらない端末でも index を変えて必ず声色を変える)
+  function pickVoice(male){
+    const vs=jaVoices(); if(!vs.length) return null;
+    if(male) return vs.find(v=>/ichiro|otoya|male|男|hattori|daichi/i.test(v.name)) || vs[1] || vs[0];
+    return vs.find(v=>/ayumi|haruka|sayaka|kyoko|o-?ren|female|女|nanami|mizuki/i.test(v.name)) || vs[0];
   }
-  if("speechSynthesis"in window){ try{ speechSynthesis.onvoiceschanged=()=>{ _voice=null; pickVoice(); }; }catch(e){} }
+  // キャラ声プリセット。char を渡すと声色が変わる。
+  const CHARV = {
+    ossan:{rate:1.0,pitch:0.7,male:true},   // つき手のおっさん
+    niisan:{rate:1.28,pitch:1.05,male:true},// 若い男
+    neesan:{rate:1.2,pitch:1.45,male:false},// 女性
+    baa:{rate:0.95,pitch:0.95,male:false},  // 年配
+    chibi:{rate:1.5,pitch:1.7,male:false},  // 子供っぽい
+    mochi:{rate:1.4,pitch:1.6,male:false},  // 化け物もち(甲高い)
+    narr:{rate:1.15,pitch:1.0,male:false},  // ナレーション
+  };
   // text を喋る。声はタイミングが甘いので「掛け声・反応」の飾りに使う(拍の芯は音で)。
   function say(text,opt){
     opt=opt||{}; if(!("speechSynthesis"in window)) return;
+    const c = (opt.char && CHARV[opt.char]) ? CHARV[opt.char] : null;
+    const male = opt.male!=null ? opt.male : (c ? c.male : false);
     try{
       if(opt.interrupt) speechSynthesis.cancel();
       const u=new SpeechSynthesisUtterance(text);
-      const v=pickVoice(); if(v) u.voice=v; u.lang="ja-JP";
-      u.rate = opt.rate!=null?opt.rate:1.15;
-      u.pitch= opt.pitch!=null?opt.pitch:1;
+      const v=pickVoice(male); if(v) u.voice=v; u.lang="ja-JP";
+      u.rate = opt.rate!=null?opt.rate:(c?c.rate:1.15);
+      u.pitch= opt.pitch!=null?opt.pitch:(c?c.pitch:1);
       u.volume=opt.volume!=null?opt.volume:1;
       if(opt.onend) u.onend=opt.onend;
       speechSynthesis.speak(u);
@@ -118,43 +134,42 @@ window.Yokocho = (function(){
     c.fillStyle="#5a1810"; c.fill(); ink(c,r*0.055);
   }
 
-  // 横丁の住人(手描き)。o:{x,y,scale,rot,mouthOpen,mouthCurve,brow,squash,dead}
+  // 横丁の住人(手描き)。動物でなく「人」。o:{x,y,scale,rot,mouthOpen,mouthCurve,brow,squash,dead,arm}
   function creature(c,color,o,drawBody){
     o=o||{}; const s=(o.scale||1), sq=o.squash||1;
     c.save(); c.translate(o.x||0,o.y||0); c.rotate(o.rot||0); c.scale(s*sq, s/sq);
     drawBody(c,color,o); c.restore();
   }
-  function buyoBody(c,color,o){ // ブヨ: ずんぐり
-    c.beginPath(); c.moveTo(-46,90); c.quadraticCurveTo(-70,30,-40,-14);
-    c.quadraticCurveTo(-10,-54,34,-22); c.quadraticCurveTo(62,18,42,94);
-    c.quadraticCurveTo(-4,114,-46,90); fillInk(c,color,6);
-    // 一本毛
-    c.beginPath(); c.moveTo(0,-44); c.quadraticCurveTo(4,-66,18,-54); ink(c,6);
-    face(c,44,o);
+  // 手描きの人。頭+髪+顔・胴(服)・腕・足。cloth=服色, o.hair/o.skin/o.build/o.arm。
+  function personBody(c, cloth, o){
+    const hair=o.hair||"#3a2a1a", skin=o.skin||"#f0c29a", b=o.build||1, arm=o.arm||0;
+    // 足
+    c.strokeStyle=PALETTE.ink; c.lineWidth=13; c.lineCap="round";
+    c.beginPath(); c.moveTo(-16*b,50); c.lineTo(-16*b,96); c.moveTo(16*b,50); c.lineTo(16*b,96); c.stroke();
+    // 胴(服)
+    c.beginPath(); c.moveTo(-34*b,54); c.quadraticCurveTo(-40*b,-6,0,-16);
+    c.quadraticCurveTo(40*b,-6,34*b,54); c.quadraticCurveTo(0,68,-34*b,54); fillInk(c,cloth,6);
+    // 腕(下ろす。arm>0で上げる)
+    c.strokeStyle=PALETTE.ink; c.lineWidth=12; c.lineCap="round";
+    c.beginPath(); c.moveTo(-30*b,6); c.lineTo(-42*b,42-arm*74);
+    c.moveTo(30*b,6); c.lineTo(42*b,42-arm*74); c.stroke();
+    // 頭
+    c.save(); c.translate(0,-46);
+    c.beginPath(); c.arc(0,0,27,0,7); fillInk(c,skin,5);
+    // 髪(上半分をかぶせる)
+    c.beginPath(); c.arc(0,-3,29,Math.PI*1.02,Math.PI*1.98); c.fillStyle=hair; c.fill();
+    c.lineWidth=3; c.strokeStyle=PALETTE.ink; c.stroke();
+    face(c,27,o);
+    c.restore();
   }
-  function machoBody(c,color,o){ // マッチョ: ちび頭でかい腕
-    c.beginPath(); c.ellipse(-64,26,26,30,0,0,7); fillInk(c,PALETTE.macho2,6);
-    c.beginPath(); c.ellipse(64,26,26,30,0,0,7); fillInk(c,PALETTE.macho2,6);
-    c.beginPath(); c.moveTo(-52,96); c.quadraticCurveTo(-66,20,2,16);
-    c.quadraticCurveTo(70,20,54,96); c.quadraticCurveTo(0,116,-52,96); fillInk(c,color,6);
-    c.beginPath(); c.moveTo(0,24); c.lineTo(0,88); c.moveTo(-24,40); c.quadraticCurveTo(0,54,24,40); ink(c,4);
-    c.beginPath(); c.arc(0,-18,26,0,7); fillInk(c,color,6);
-    face(c,26,o);
-  }
-  function noppoBody(c,color,o){ // ノッポ: 首がのびる
-    c.beginPath(); c.moveTo(-30,96); c.quadraticCurveTo(-46,40,-6,20);
-    c.quadraticCurveTo(30,4,30,60); c.quadraticCurveTo(20,96,-30,96); fillInk(c,color,6);
-    const neck=o.neck!=null?o.neck:40;
-    c.fillStyle=color; c.fillRect(-9,-neck+18,18,neck); ink(c,0);
-    c.beginPath(); c.moveTo(-9,20); c.lineTo(-9,-neck+18); c.moveTo(9,20); c.lineTo(9,-neck+18); ink(c,6);
-    c.save(); c.translate(0,-neck+8);
-    c.beginPath(); c.ellipse(0,0,22,19,0,0,7); fillInk(c,color,6);
-    face(c,20,o); c.restore();
-  }
+  // 3人の住人。服色は引数(mochiが渡す)、体格/髪/肌で描き分け。
+  function buyoBody(c,cloth,o){ personBody(c,cloth,Object.assign({hair:"#3a2a1a",skin:"#f0c29a",build:1.18},o)); } // ずんぐりおっさん
+  function machoBody(c,cloth,o){ personBody(c,cloth,Object.assign({hair:"#1f1b18",skin:"#e3ae7e",build:1.4},o)); }  // がたい
+  function noppoBody(c,cloth,o){ personBody(c,cloth,Object.assign({hair:"#6b4e2e",skin:"#f6d2b0",build:0.85},o)); }  // ひょろ
 
   return {
     PALETTE, audio:{ ctx, resume, now, tone, noise }, sfx, Rhythm,
-    say, pickVoice, hasVoice:("speechSynthesis"in window),
-    draw:{ ink, fillInk, face, creature, buyoBody, machoBody, noppoBody },
+    say, pickVoice, jaVoices, hasVoice:("speechSynthesis"in window),
+    draw:{ ink, fillInk, face, creature, personBody, buyoBody, machoBody, noppoBody },
   };
 })();

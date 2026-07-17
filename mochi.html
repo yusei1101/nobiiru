@@ -90,7 +90,7 @@ function handIn(ph,pat,bi){
 function toTarget(ph,pat){ const ts=pat==="double"?[0,0.5,1]:[0,1]; let m=1; for(const t of ts) m=Math.min(m,Math.abs(ph-t)); return m; }
 
 function onBeat(n,at){ Y.sfx.kick(at); Y.sfx.hat(at+R.spb/2);
-  if(n%4===2) setTimeout(()=>{ if(state===S.PLAY) Y.say("あいよ",{rate:1.3,pitch:1.2,volume:0.8}); }, R.spb*500); }
+  if(n%4===2) setTimeout(()=>{ if(state===S.PLAY) Y.say("あいよ",{char:'niisan',volume:0.8}); }, R.spb*500); }
 
 function start(){ Y.audio.resume(); reset();
   document.getElementById('title').classList.add('hidden'); document.getElementById('gameover').classList.add('hidden');
@@ -115,7 +115,7 @@ function tap(){
   const danger=handIn(ph,sec.pat,bi), close=toTarget(ph,sec.pat); poundAnim=1;
 
   if(danger>0.5){ poundKind='smash'; smash++; handHurt=1; anger=Math.min(1,anger+0.3);
-    Y.sfx.bad(); Y.say(["いたっ！","あぁっ！","ちょっ！"][smash%3],{interrupt:true,rate:1.2,pitch:1.4});
+    Y.sfx.bad(); Y.say(["いたっ！","あぁっ！","ちょっ！"][smash%3],{char:'niisan',interrupt:true,pitch:1.4});
     addFloat(cxc()+90,usuY()-40,"ｸﾞｼｬ",'#ff5566',true); shake=18; flash=0.5; flashCol='255,60,80'; return; }
 
   if(close<0.12){ poundKind='good'; const t=close<0.05; if(t) tight++; else good++;
@@ -124,8 +124,8 @@ function tap(){
     shake=t?13:8; flash=0.3; flashCol='255,240,120';
     // もちが 悲鳴(声。場面が進むほど頻繁)
     const sec2=section();
-    if(sec2.scream && b-screamT>1.1){ screamT=b; Y.say(sec2.scream,{interrupt:true,rate:1.4,pitch:1.5+grow*0.3,volume:1}); }
-    else if(b-lastVoice>1.8){ lastVoice=b; Y.say(t?"よいしょ！":"ほい",{rate:1.25,pitch:0.9,volume:0.8}); }
+    if(sec2.scream && b-screamT>1.1){ screamT=b; Y.say(sec2.scream,{char:'mochi',interrupt:true,pitch:1.5+grow*0.3}); }
+    else if(b-lastVoice>1.8){ lastVoice=b; Y.say(t?"よいしょ！":"ほい",{char:'ossan',volume:0.85}); }
     return; }
   poundKind='whiff'; whiff++; Y.sfx.whiff(); addFloat(cxc(),usuY()-80,"すかっ",'#c9b98a',false);
 }
@@ -146,7 +146,7 @@ function update(dt){
     if(b>=0){ let idx=0; while(idx<SCRIPT.length && b>=START[idx+1]) idx++;
       if(idx!==secIdx && idx<SCRIPT.length){ secIdx=idx; const s=SCRIPT[idx];
         bannerT=s.name; bannerUntil=b+2.4; document.getElementById('sect').textContent=s.name;
-        Y.say(s.say,{interrupt:true,rate:1.25,pitch:1.1}); shake=14; if(s.invert) invertT=0.3; } }
+        Y.say(s.say,{char:'narr',interrupt:true}); shake=14; if(s.invert) invertT=0.3; } }
     document.getElementById('deki').textContent = smash>=5?"ブチギレ":grow>0.9?"ばけもの":grow>0.5?"でかい":"ふつう";
     if(b>=END_BEAT) finish();
   }

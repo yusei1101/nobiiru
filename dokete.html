@@ -211,12 +211,14 @@ function update(dt){
   if(remain<=0){ remain=0; clear(); }
 }
 
-function fail(){ state=S.OVER; shake=18; flash=0.6; Y.sfx.bad(); Y.say("すみませんっ！",{interrupt:true,rate:1.4,pitch:1.2});
+const SUMI=['neesan','niisan','baa','chibi']; let sumiI=0;
+function fail(){ state=S.OVER; shake=18; flash=0.6; Y.sfx.bad();
+  Y.say("すみませんっ！",{char:SUMI[(sumiI++)%SUMI.length],interrupt:true});
   document.getElementById('goTitle').textContent="ぶつかった";
   document.getElementById('goSub').textContent="Lv"+lv+" しっぱい";
   document.getElementById('goMsg').textContent="人混みに のまれた。もういっかい。";
   endScreen(); }
-function clear(){ state=S.OVER; setCleared(lv); Y.say("ぶじ ぬけたー",{interrupt:true,rate:1.15,pitch:1.05});
+function clear(){ state=S.OVER; setCleared(lv); Y.say("ぶじ ぬけたー",{char:'niisan',interrupt:true});
   document.getElementById('goTitle').textContent="ぬけた！";
   document.getElementById('goSub').textContent="Lv"+lv+" クリア";
   document.getElementById('goMsg').textContent = lv>=MAXLV?"全レベル 制覇。名人。":"つぎの レベルが 開いた。";
