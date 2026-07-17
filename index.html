@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#12102a">
+<title>のびーる</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#12102a; }
+  body {
+    font-family: "Hiragino Maru Gothic ProN","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+    touch-action:none; user-select:none; -webkit-user-select:none;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #wrap { position:relative; width:100%; height:100%; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; display:block; }
+  /* UI overlays */
+  .screen {
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; text-align:center; color:#fff;
+    padding:24px; gap:18px; z-index:5;
+  }
+  .hidden { display:none !important; }
+  #title h1 {
+    font-size: clamp(56px, 22vw, 140px); font-weight:900; letter-spacing:-2px;
+    text-shadow: 0 6px 0 rgba(0,0,0,.25), 0 0 40px rgba(255,220,120,.5);
+    animation: bob 2.2s ease-in-out infinite;
+  }
+  @keyframes bob { 0%,100%{transform:translateY(0) rotate(-1.5deg)} 50%{transform:translateY(-14px) rotate(1.5deg)} }
+  #title .sub { font-size: clamp(15px,4.5vw,20px); opacity:.85; line-height:1.7; }
+  .btn {
+    margin-top:6px; background:#ffd34e; color:#3a2a00; font-weight:900;
+    font-size: clamp(20px,6vw,26px); border:none; border-radius:999px;
+    padding:16px 44px; box-shadow:0 8px 0 #c99a12, 0 12px 24px rgba(0,0,0,.35);
+    cursor:pointer; transition:transform .06s;
+  }
+  .btn:active { transform:translateY(5px); box-shadow:0 3px 0 #c99a12; }
+  .pill { background:rgba(255,255,255,.12); border-radius:14px; padding:10px 16px; font-size:14px; line-height:1.7; max-width:340px; }
+  #gameover h2 { font-size: clamp(40px,13vw,80px); font-weight:900; text-shadow:0 5px 0 rgba(0,0,0,.3); }
+  #gameover .score { font-size: clamp(24px,8vw,44px); font-weight:900; color:#ffd34e; }
+  #gameover .msg { font-size:16px; opacity:.9; max-width:320px; line-height:1.7; }
+  /* HUD */
+  #hud { position:absolute; top:0; left:0; right:0; z-index:4; padding:14px 16px;
+    display:flex; justify-content:space-between; align-items:flex-start; color:#fff;
+    pointer-events:none; font-weight:900; text-shadow:0 2px 6px rgba(0,0,0,.5); }
+  #score { font-size: clamp(28px,9vw,44px); line-height:1; }
+  #scoreLbl { font-size:11px; font-weight:700; opacity:.7; letter-spacing:2px; }
+  #hearts { font-size: clamp(22px,7vw,30px); letter-spacing:2px; }
+  #combo { position:absolute; top:64px; left:16px; z-index:4; color:#ffe27a;
+    font-weight:900; font-size: clamp(18px,6vw,26px); text-shadow:0 2px 8px rgba(0,0,0,.6);
+    pointer-events:none; opacity:0; transform:translateY(4px); transition:opacity .15s; }
+  #hint { position:absolute; bottom: max(26px, env(safe-area-inset-bottom)); left:0; right:0;
+    text-align:center; color:#fff; opacity:.6; font-size:14px; z-index:4; pointer-events:none;
+    animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:.35} 50%{opacity:.75} }
+  #banner { position:absolute; top:38%; left:0; right:0; text-align:center; z-index:6;
+    color:#fff; font-weight:900; font-size: clamp(28px,10vw,52px); pointer-events:none;
+    text-shadow:0 4px 0 rgba(0,0,0,.35), 0 0 30px currentColor; opacity:0; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c"></canvas>
+
+  <div id="hud" class="hidden">
+    <div><div id="scoreLbl">スコア</div><div id="score">0</div></div>
+    <div id="hearts">🫧🫧🫧</div>
+  </div>
+  <div id="combo"></div>
+  <div id="hint" class="hidden">🟢みどり=たべる　🔴あか=キケン　／　押しっぱなしでのびーる</div>
+  <div id="banner"></div>
+
+  <div id="title" class="screen">
+    <h1>のびーる</h1>
+    <div class="sub">首をのばして、<br>空のたべものを食べるだけ。</div>
+    <button class="btn" id="startBtn">はじめる</button>
+    <div class="pill" style="text-align:left; max-width:320px;">
+      🫧 <b>画面を押しっぱなし</b>で首がのびる・離すと戻る<br><br>
+      <span style="color:#7dffa6;font-weight:900;">○ みどりのわ ＝ たべる！</span><br>
+      <span style="font-size:22px;letter-spacing:3px;">🍡🍙🍣🍩</span>
+      <span style="color:#ffd34e;">🌙🛸👁️（きらきら＝レア高得点）</span><br><br>
+      <span style="color:#ff6b7a;font-weight:900;">✕ あかい点線・ブルブル ＝ ダメ！</span><br>
+      <span style="font-size:22px;letter-spacing:3px;">⚡🌶️💀🧦🪨</span><br>
+      <span style="opacity:.8;font-size:13px;">→ 食べると きぶん🫧 が１つ減る（3つで おわり）</span>
+    </div>
+  </div>
+
+  <div id="gameover" class="screen hidden">
+    <h2>おなかいっぱい</h2>
+    <div class="score" id="finalScore">0</div>
+    <div class="msg" id="goMsg"></div>
+    <button class="btn" id="retryBtn">もういっかい</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+(function(){
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+let W=0,H=0,DPR=1;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2.5);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = W*DPR; cv.height = H*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize', resize); resize();
+
+// ---------- tiny audio ----------
+let AC=null;
+function actx(){ if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return AC; }
+function blip(freq, dur, type, vol){
+  const ac=actx(); if(!ac) return;
+  const o=ac.createOscillator(), g=ac.createGain();
+  o.type=type||'square'; o.frequency.value=freq;
+  g.gain.value=0; o.connect(g); g.connect(ac.destination);
+  const t=ac.currentTime;
+  g.gain.setValueAtTime(0,t);
+  g.gain.linearRampToValueAtTime(vol||0.18, t+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t+(dur||0.15));
+  o.start(t); o.stop(t+(dur||0.15)+0.02);
+}
+function sChomp(){ blip(220,0.06,'square',0.2); setTimeout(()=>blip(140,0.09,'square',0.18),40); }
+function sYum(mult){ blip(520+mult*40,0.09,'triangle',0.2); setTimeout(()=>blip(760+mult*50,0.12,'triangle',0.18),70); }
+function sBad(){ blip(150,0.18,'sawtooth',0.22); setTimeout(()=>blip(90,0.25,'sawtooth',0.2),90); }
+function sStretch(){ blip(300,0.05,'sine',0.05); }
+function sLevel(){ [440,554,659,880].forEach((f,i)=>setTimeout(()=>blip(f,0.15,'triangle',0.16),i*90)); }
+
+// ---------- game state ----------
+const S = { TITLE:0, PLAY:1, OVER:2 };
+let state = S.TITLE;
+let score=0, mood=3, combo=0, bestCombo=0, level=0, timeSec=0;
+let holding=false;
+let shake=0, flash=0, flashColor='255,255,255';
+const items=[], parts=[], floaters=[], decor=[];
+let spawnT=0, tPrev=0;
+
+// creature
+const cre = {
+  charge:0,      // 0..1 how far neck extends
+  headY:0, headX:0, headVX:0,
+  chomp:0,       // mouth open animation
+  squash:0,      // eat squash
+  face:0,        // eaten count for expression
+  hurt:0,
+};
+
+// world palettes per level (surreal escalation)
+const LEVELS = [
+  {name:"", sky:['#2a1b52','#6a3d8f','#e59bb0'], ground:'#3a2a5f', sun:'#ffd98a'},
+  {name:"世界がゆがみはじめた", sky:['#132a4a','#2f7fa8','#a8e0c0'], ground:'#1f3a4f', sun:'#ffe6a0'},
+  {name:"太陽が目をあけた", sky:['#4a1230','#a83f5f','#ffb27a'], ground:'#3a1226', sun:'#fff0c0', eye:true},
+  {name:"だんごの雨", sky:['#101a3a','#3a4f9f','#7fa8e0'], ground:'#101a2f', sun:'#ffd98a', rain:true},
+  {name:"む", sky:['#0a0a0a','#1a1a1a','#2a2a2a'], ground:'#000', sun:'#666', mu:true},
+  {name:"ぜんぶ おいしい", sky:['#3a0f4a','#a02f9f','#ff9fd0'], ground:'#2a0a3a', sun:'#fff', disco:true},
+];
+function curLevel(){ return LEVELS[Math.min(level, LEVELS.length-1)]; }
+
+// item catalog
+const GOOD = [
+  {e:'🍡',p:10}, {e:'🍙',p:10}, {e:'🍤',p:12}, {e:'🍩',p:12},
+  {e:'🍣',p:14}, {e:'🍓',p:14}, {e:'🍌',p:12}, {e:'🐟',p:14},
+];
+const RARE = [
+  {e:'🌙',p:50}, {e:'🛸',p:40}, {e:'👁️',p:45}, {e:'🗿',p:35}, {e:'🌈',p:30}, {e:'⭐',p:30},
+];
+const BAD = [ {e:'⚡'}, {e:'🌶️'}, {e:'💀'}, {e:'🧦'}, {e:'🪨'} ];
+
+function baseY(){ return H - Math.max(90, H*0.13); }
+function restHeadY(){ return baseY() - Math.max(70, H*0.10); }
+function topHeadY(){ return Math.max(90, H*0.14); }
+
+function reset(){
+  score=0; mood=3; combo=0; bestCombo=0; level=0; timeSec=0; holding=false;
+  items.length=0; parts.length=0; floaters.length=0; decor.length=0;
+  spawnT=0; shake=0; flash=0;
+  cre.charge=0; cre.headY=restHeadY(); cre.headX=W/2; cre.headVX=0;
+  cre.chomp=0; cre.squash=0; cre.face=0; cre.hurt=0;
+  updateHUD();
+}
+
+// ---------- spawning ----------
+function spawnItem(){
+  const lv = level;
+  const dir = Math.random()<0.5?1:-1;
+  const speed = (60 + Math.random()*40 + lv*10) * (dir);
+  // keep lanes above the resting head so nothing auto-hits you without a reach
+  const lane = topHeadY() + Math.random()*(restHeadY()-topHeadY()-90);
+  const r = Math.random();
+  let type, emoji, pts, bad=false, sway=Math.random()<0.4;
+  const badChance = 0.14 + lv*0.02;
+  if(r < badChance){
+    const b = BAD[(Math.random()*BAD.length)|0];
+    type='bad'; emoji=b.e; pts=0; bad=true;
+  } else if(r < badChance+0.14){
+    const g = RARE[(Math.random()*RARE.length)|0];
+    type='rare'; emoji=g.e; pts=g.p;
+  } else {
+    const g = GOOD[(Math.random()*GOOD.length)|0];
+    type='good'; emoji=g.e; pts=g.p;
+  }
+  items.push({
+    x: dir>0? -40 : W+40, y:lane, vx:speed, base:lane,
+    emoji, pts, bad, type, r:34, born:timeSec, sway,
+    swayAmp: 10+Math.random()*22, swayF: 1.5+Math.random()*2, rot:(Math.random()-0.5)*0.4
+  });
+}
+
+// ---------- effects ----------
+function burst(x,y,color,n){
+  for(let i=0;i<n;i++){
+    const a=Math.random()*Math.PI*2, sp=60+Math.random()*220;
+    parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-60,life:0.6+Math.random()*0.4,age:0,
+      r:3+Math.random()*5,color});
+  }
+}
+function floatText(x,y,txt,color,big){
+  floaters.push({x,y,txt,color,age:0,life:1.0,big:!!big});
+}
+
+// ---------- eating ----------
+function eat(it){
+  cre.chomp=1; cre.squash=1;
+  if(it.bad){
+    mood--; combo=0; cre.hurt=1; cre.face=Math.max(0,cre.face-1);
+    shake=Math.max(shake,16); flash=0.6; flashColor='255,70,90';
+    sBad();
+    burst(it.x,it.y,'255,90,110',22);
+    floatText(cre.headX, cre.headY-40, ['げっ','うぇ','まずっ','ヘン','うっ'][(Math.random()*5)|0], '#ff8a9a', true);
+    updateHUD();
+    if(mood<=0){ setTimeout(gameOver, 260); }
+    return;
+  }
+  combo++; bestCombo=Math.max(bestCombo,combo);
+  cre.face=Math.min(6,cre.face+1);
+  const mult = 1 + Math.floor(combo/5);
+  const gained = it.pts*mult;
+  score += gained;
+  sChomp(); sYum(Math.min(mult,6));
+  const col = it.type==='rare' ? '255,220,90' : '150,230,140';
+  burst(it.x,it.y,col, it.type==='rare'?26:16);
+  floatText(it.x, it.y-10, '+'+gained + (mult>1?(' x'+mult):''), it.type==='rare'?'#ffdc5a':'#b6ff8c', it.type==='rare');
+  shake=Math.max(shake, it.type==='rare'?10:5);
+  showCombo();
+  // level up by score
+  const newLevel = Math.min(LEVELS.length-1, Math.floor(score/220));
+  if(newLevel>level){ level=newLevel; onLevelUp(); }
+  updateHUD();
+}
+
+function onLevelUp(){
+  sLevel();
+  const L=curLevel();
+  showBanner(L.name || '？？？');
+  flash=0.5; flashColor='255,255,255'; shake=Math.max(shake,14);
+  // add decor
+  if(L.rain){ for(let i=0;i<3;i++) decor.push({t:'rain'}); }
+}
+
+// ---------- UI helpers ----------
+const $score=document.getElementById('score'), $hearts=document.getElementById('hearts');
+const $combo=document.getElementById('combo'), $banner=document.getElementById('banner');
+function updateHUD(){
+  $score.textContent = score;
+  $hearts.textContent = mood>0 ? '🫧'.repeat(mood)+'🖤'.repeat(Math.max(0,3-mood)) : '🖤🖤🖤';
+}
+let comboHideT=null;
+function showCombo(){
+  if(combo<2){ $combo.style.opacity=0; return; }
+  $combo.textContent = combo+' コンボ！';
+  $combo.style.opacity=1; $combo.style.transform='translateY(0) scale(1.1)';
+  clearTimeout(comboHideT);
+  comboHideT=setTimeout(()=>{ $combo.style.opacity=0; }, 1100);
+}
+let bannerT=null;
+function showBanner(txt){
+  $banner.textContent = txt;
+  $banner.style.color = ['#ffd34e','#7fe0ff','#ff9fd0','#b6ff8c'][(Math.random()*4)|0];
+  $banner.style.transition='none'; $banner.style.opacity=0; $banner.style.transform='scale(1.4)';
+  requestAnimationFrame(()=>{
+    $banner.style.transition='opacity .3s, transform .5s';
+    $banner.style.opacity=1; $banner.style.transform='scale(1)';
+  });
+  clearTimeout(bannerT);
+  bannerT=setTimeout(()=>{ $banner.style.transition='opacity .6s'; $banner.style.opacity=0; }, 1600);
+}
+
+// ---------- screens ----------
+const $title=document.getElementById('title'), $over=document.getElementById('gameover'),
+      $hud=document.getElementById('hud'), $hint=document.getElementById('hint');
+const GO_MSGS = [
+  'また のびーるを よろしく。','首はぶじだった。','きぶんは たいせつ。',
+  'それも 人生。','おつかれ、ムチオ。','だんごは 正義。','宇宙は やさしくない。'
+];
+function startGame(){
+  actx(); if(AC && AC.state==='suspended') AC.resume();
+  reset(); state=S.PLAY;
+  $title.classList.add('hidden'); $over.classList.add('hidden');
+  $hud.classList.remove('hidden'); $hint.classList.remove('hidden');
+  setTimeout(()=>$hint.classList.add('hidden'), 3200);
+}
+function gameOver(){
+  if(state!==S.PLAY) return;
+  state=S.OVER;
+  $hud.classList.add('hidden');
+  document.getElementById('finalScore').textContent = score + ' てん';
+  document.getElementById('goMsg').textContent =
+    'さいだいコンボ '+bestCombo+'。' + GO_MSGS[(Math.random()*GO_MSGS.length)|0];
+  $over.classList.remove('hidden');
+  sBad();
+}
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('retryBtn').addEventListener('click', startGame);
+
+// ---------- input ----------
+function press(){ if(state===S.PLAY){ holding=true; } }
+function release(){ holding=false; }
+cv.addEventListener('pointerdown', press);
+window.addEventListener('pointerup', release);
+window.addEventListener('pointercancel', release);
+window.addEventListener('keydown', e=>{ if(e.code==='Space'){ e.preventDefault(); if(state===S.PLAY) press(); else startGame(); }});
+window.addEventListener('keyup', e=>{ if(e.code==='Space') release(); });
+
+// ---------- update ----------
+function update(dt){
+  timeSec += dt;
+  if(state!==S.PLAY) return;
+
+  // charge
+  const target = holding?1:0;
+  const rate = holding?2.0:5.5;
+  cre.charge += (target-cre.charge)*Math.min(1,dt*rate);
+  if(holding && Math.random()<0.25) sStretch();
+
+  // head position (spring toward charged height + wobble)
+  const desiredY = restHeadY() + (topHeadY()-restHeadY())*ease(cre.charge);
+  cre.headY += (desiredY-cre.headY)*Math.min(1,dt*12);
+  // lateral wobble grows with reach
+  const swayAmp = 26*cre.charge;
+  const targetX = W/2 + Math.sin(timeSec*3.2)*swayAmp + Math.sin(timeSec*1.3)*swayAmp*0.4;
+  cre.headX += (targetX-cre.headX)*Math.min(1,dt*10);
+
+  cre.chomp = Math.max(0, cre.chomp - dt*4);
+  cre.squash = Math.max(0, cre.squash - dt*3);
+  cre.hurt = Math.max(0, cre.hurt - dt*2);
+
+  // spawn
+  spawnT -= dt;
+  const interval = Math.max(0.42, 1.1 - level*0.09);
+  if(spawnT<=0){ spawnItem(); spawnT = interval*(0.7+Math.random()*0.6); }
+
+  // items
+  const hx=cre.headX, hy=cre.headY, hr=40;
+  for(let i=items.length-1;i>=0;i--){
+    const it=items[i];
+    it.x += it.vx*dt;
+    if(it.sway) it.y = it.base + Math.sin(timeSec*it.swayF + it.x*0.01)*it.swayAmp;
+    it.rot += dt*0.6;
+    // collide with head (only meaningful when neck extended enough OR item low)
+    const dx=it.x-hx, dy=it.y-hy;
+    if(dx*dx+dy*dy < (hr+it.r)*(hr+it.r)){
+      eat(it); items.splice(i,1); continue;
+    }
+    if(it.x < -70 || it.x > W+70) items.splice(i,1);
+  }
+
+  // particles
+  for(let i=parts.length-1;i>=0;i--){
+    const p=parts[i]; p.age+=dt;
+    p.vy += 480*dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vx*=0.98;
+    if(p.age>=p.life) parts.splice(i,1);
+  }
+  for(let i=floaters.length-1;i>=0;i--){
+    const f=floaters[i]; f.age+=dt; f.y-=40*dt;
+    if(f.age>=f.life) floaters.splice(i,1);
+  }
+
+  shake = Math.max(0, shake - dt*40);
+  flash = Math.max(0, flash - dt*2.2);
+}
+function ease(t){ return t*t*(3-2*t); }
+
+// ---------- render ----------
+function draw(){
+  const L=curLevel();
+  ctx.save();
+  // shake
+  if(shake>0){ ctx.translate((Math.random()-0.5)*shake,(Math.random()-0.5)*shake); }
+
+  // sky gradient
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,L.sky[0]); g.addColorStop(0.55,L.sky[1]); g.addColorStop(1,L.sky[2]);
+  ctx.fillStyle=g; ctx.fillRect(-20,-20,W+40,H+40);
+
+  // sun / surreal sun
+  const sx=W*0.78, sy=H*0.20, sr=Math.max(46,W*0.13);
+  ctx.save();
+  ctx.globalAlpha = L.mu?0.25:0.9;
+  ctx.fillStyle=L.sun;
+  ctx.beginPath(); ctx.arc(sx,sy,sr,0,7); ctx.fill();
+  if(L.eye){ // sun with eye
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.ellipse(sx,sy,sr*0.5,sr*0.55,0,0,7); ctx.fill();
+    ctx.fillStyle='#201018';
+    const px=Math.cos(timeSec*0.8)*sr*0.16, py=Math.sin(timeSec*0.8)*sr*0.16;
+    ctx.beginPath(); ctx.arc(sx+px,sy+py,sr*0.2,0,7); ctx.fill();
+  }
+  if(L.disco){ ctx.globalAlpha=0.5; for(let i=0;i<8;i++){ ctx.rotate(0.78); ctx.fillStyle=`hsl(${(timeSec*120+i*45)%360},90%,65%)`; ctx.fillRect(sx-2,sy-sr*3,4,sr*2);} }
+  ctx.restore();
+
+  // big 「無」 for the void level
+  if(L.mu){
+    ctx.save(); ctx.globalAlpha=0.14; ctx.fillStyle='#fff';
+    ctx.font='900 '+Math.min(W,H)*0.7+'px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('無', W/2, H*0.42); ctx.restore();
+  }
+
+  // ground blob
+  ctx.fillStyle=L.ground;
+  const by=baseY();
+  ctx.beginPath();
+  ctx.moveTo(-20,H+20); ctx.lineTo(-20,by+20);
+  ctx.quadraticCurveTo(W*0.5, by-24, W+20, by+20); ctx.lineTo(W+20,H+20); ctx.closePath();
+  ctx.fill();
+
+  // items — clear colour code: GREEN ring = eat, GOLD = rare (eat!), RED dashed + shake = danger
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  for(const it of items){
+    const bad=it.bad, rare=it.type==='rare';
+    const col = bad ? '255,72,86' : rare ? '255,205,60' : '86,222,130';
+    const pulse = 1 + Math.sin(timeSec*(bad?11:5) + it.x*0.05)*(bad?0.10:0.05);
+    const R = it.r*1.05*pulse;
+    ctx.save(); ctx.translate(it.x,it.y);
+    // soft glow halo (colour tells you good/bad at a glance)
+    const rg = ctx.createRadialGradient(0,0,R*0.3,0,0,R*1.7);
+    rg.addColorStop(0,'rgba('+col+','+(bad?0.5:0.42)+')');
+    rg.addColorStop(1,'rgba('+col+',0)');
+    ctx.fillStyle=rg; ctx.beginPath(); ctx.arc(0,0,R*1.7,0,7); ctx.fill();
+    // ring: solid for edible, dashed danger-ring for bad
+    ctx.lineWidth=bad?4:3; ctx.strokeStyle='rgba('+col+',0.95)';
+    if(bad){ ctx.setLineDash([7,7]); ctx.lineDashOffset=-timeSec*40; }
+    ctx.beginPath(); ctx.arc(0,0,R,0,7); ctx.stroke(); ctx.setLineDash([]);
+    // emoji (bad ones jitter nervously = "don't eat me")
+    const jx = bad?(Math.random()-0.5)*4:0, jy=bad?(Math.random()-0.5)*4:0;
+    ctx.rotate(Math.sin(it.rot)*(bad?0.25:0.12));
+    ctx.font=(it.r*1.5)+'px serif';
+    ctx.fillText(it.emoji, jx, jy);
+    // little corner badge so it's unmistakable even without colour
+    ctx.rotate(-Math.sin(it.rot)*(bad?0.25:0.12));
+    ctx.font='900 '+(it.r*0.7)+'px sans-serif'; ctx.textBaseline='middle';
+    ctx.fillStyle=bad?'#ff2d42':(rare?'#ffc200':'#2fbf5a');
+    ctx.fillText(bad?'✕':'○', R*0.92, -R*0.92);
+    ctx.restore();
+  }
+  ctx.textBaseline='middle';
+
+  // creature
+  drawCreature(by);
+
+  // particles
+  for(const p of parts){
+    const a=1-p.age/p.life;
+    ctx.globalAlpha=a; ctx.fillStyle='rgba('+p.color+',1)';
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r*(0.4+a*0.9),0,7); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+
+  // floaters
+  for(const f of floaters){
+    const a=1-f.age/f.life;
+    ctx.globalAlpha=a; ctx.fillStyle=f.color;
+    ctx.font='900 '+(f.big?34:24)+'px sans-serif';
+    ctx.fillText(f.txt,f.x,f.y);
+  }
+  ctx.globalAlpha=1;
+  ctx.restore();
+
+  // flash
+  if(flash>0){ ctx.fillStyle='rgba('+flashColor+','+(flash*0.5)+')'; ctx.fillRect(0,0,W,H); }
+}
+
+function drawCreature(by){
+  const bx=W/2;
+  const hx=cre.headX, hy=cre.headY;
+  // neck as wobbly noodle from base to head
+  const N=16;
+  const pts=[];
+  for(let i=0;i<=N;i++){
+    const t=i/N;
+    const x=lerp(bx,hx,t) + Math.sin(t*3.3 - timeSec*4)*10*cre.charge*(1-t*0.3);
+    const y=lerp(by,hy,t);
+    pts.push([x,y]);
+  }
+  // thickness taper
+  ctx.strokeStyle='#8be0b0'; ctx.lineCap='round'; ctx.lineJoin='round';
+  for(let i=0;i<N;i++){
+    const t=i/N;
+    ctx.lineWidth = lerp(46,26,t);
+    ctx.beginPath(); ctx.moveTo(pts[i][0],pts[i][1]); ctx.lineTo(pts[i+1][0],pts[i+1][1]); ctx.stroke();
+  }
+  // belly blob at base
+  ctx.fillStyle='#8be0b0';
+  ctx.beginPath(); ctx.ellipse(bx, by+18, 60, 46, 0, 0, 7); ctx.fill();
+  // little feet
+  ctx.fillStyle='#5fb98a';
+  ctx.beginPath(); ctx.ellipse(bx-26, by+52, 16, 10,0,0,7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(bx+26, by+52, 16, 10,0,0,7); ctx.fill();
+
+  // head (squash/stretch on eat)
+  const sq=cre.squash;
+  const rw=42*(1+sq*0.25), rh=42*(1-sq*0.2);
+  ctx.save(); ctx.translate(hx,hy);
+  // face color shifts when hurt
+  ctx.fillStyle = cre.hurt>0.3 ? '#a7e6bf' : '#9be7bd';
+  ctx.beginPath(); ctx.ellipse(0,0,rw,rh,0,0,7); ctx.fill();
+  // cheeks
+  ctx.fillStyle='rgba(255,150,170,.5)';
+  ctx.beginPath(); ctx.arc(-22,8,8,0,7); ctx.fill();
+  ctx.beginPath(); ctx.arc(22,8,8,0,7); ctx.fill();
+  // eyes
+  ctx.fillStyle='#20303a';
+  if(cre.hurt>0.3){
+    // x_x eyes
+    ctx.lineWidth=4; ctx.strokeStyle='#20303a';
+    drawX(-14,-4,7); drawX(14,-4,7);
+  } else {
+    const blink = (Math.sin(timeSec*1.7)>0.96)?1:0;
+    const eh = blink?1:(6 + cre.charge*3);
+    ctx.beginPath(); ctx.ellipse(-14,-4,4,eh,0,0,7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(14,-4,4,eh,0,0,7); ctx.fill();
+    // sparkle
+    ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.arc(-15,-7,1.6,0,7); ctx.fill();
+    ctx.beginPath(); ctx.arc(13,-7,1.6,0,7); ctx.fill();
+    ctx.fillStyle='#20303a';
+  }
+  // mouth (open when chomping / charging)
+  const open = Math.max(cre.chomp, cre.charge*0.4);
+  ctx.fillStyle='#7a2438';
+  ctx.beginPath();
+  ctx.ellipse(0, 16, 9+open*6, 4+open*12, 0, 0, 7); ctx.fill();
+  ctx.restore();
+}
+function drawX(x,y,s){ ctx.beginPath(); ctx.moveTo(x-s,y-s); ctx.lineTo(x+s,y+s); ctx.moveTo(x+s,y-s); ctx.lineTo(x-s,y+s); ctx.stroke(); }
+function lerp(a,b,t){ return a+(b-a)*t; }
+
+// ---------- title/idle creature anim ----------
+function drawIdle(){
+  const L=LEVELS[0];
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,L.sky[0]); g.addColorStop(0.55,L.sky[1]); g.addColorStop(1,L.sky[2]);
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  const sx=W*0.78, sy=H*0.20, sr=Math.max(46,W*0.13);
+  ctx.fillStyle=L.sun; ctx.globalAlpha=.85; ctx.beginPath(); ctx.arc(sx,sy,sr,0,7); ctx.fill(); ctx.globalAlpha=1;
+  const by=baseY();
+  ctx.fillStyle=L.ground;
+  ctx.beginPath(); ctx.moveTo(-20,H+20); ctx.lineTo(-20,by+20);
+  ctx.quadraticCurveTo(W*0.5, by-24, W+20, by+20); ctx.lineTo(W+20,H+20); ctx.closePath(); ctx.fill();
+  cre.headX=W/2; cre.headY=restHeadY()+Math.sin(timeSec*2)*10; cre.charge=0.15+Math.sin(timeSec*2)*0.1;
+  cre.chomp=0; cre.squash=0; cre.hurt=0;
+  drawCreature(by);
+}
+
+// ---------- loop ----------
+function step(nowMs){
+  if(!W || !H) resize();               // safety: recover from 0-size init
+  const now=nowMs/1000; let dt = tPrev? now-tPrev : 0; tPrev=now;
+  if(dt<=0) return; dt=Math.min(dt,0.05);
+  if(state===S.PLAY){ update(dt); draw(); }
+  else { timeSec+=dt; ctx.setTransform(DPR,0,0,DPR,0,0); drawIdle(); }
+}
+function frame(ts){ if(!window.__pause) step(ts); if(!window.__halt) requestAnimationFrame(frame); }
+if(location.hash==='#test'){ window.__step=step; window.__dbg=()=>({state,holding,items:items.length,headY:Math.round(cre.headY),headX:Math.round(cre.headX),charge:+cre.charge.toFixed(2),restY:Math.round(restHeadY()),topY:Math.round(topHeadY()),spawnT:+spawnT.toFixed(2)});
+  window.__items=()=>items.map(it=>({x:Math.round(it.x),y:Math.round(it.y),d:Math.round(Math.hypot(it.x-cre.headX,it.y-cre.headY)),e:it.emoji}));
+  window.__eatBad=()=>eat({bad:true,x:cre.headX,y:cre.headY,emoji:'⚡',type:'bad',pts:0});
+  window.__eatGood=()=>eat({bad:false,x:cre.headX,y:cre.headY,emoji:'🍡',type:'good',pts:10}); }
+// Watchdog: if rAF is throttled (e.g. hidden/background tab) keep the game ticking.
+setInterval(()=>{ if(!window.__pause && performance.now()-tPrev*1000 > 80) step(performance.now()); }, 40);
+window.addEventListener('load', resize);
+cre.headY=restHeadY(); cre.headX=W/2;
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
