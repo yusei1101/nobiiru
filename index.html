@@ -44,7 +44,8 @@
     min-height:158px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
   }
   .card:active{ transform: translate(4px,5px) rotate(0deg)!important; box-shadow:1px 1px 0 #000; }
-  .card .emoji{ font-size:56px; line-height:1; filter: drop-shadow(2px 3px 0 rgba(0,0,0,.25)); }
+  .card .icon{ height:60px; display:flex; align-items:center; justify-content:center;
+    filter: drop-shadow(2px 3px 0 rgba(0,0,0,.2)); }
   .card .name{ font-size:22px; font-weight:900; }
   .card .tag{ font-size:12px; font-weight:700; opacity:.72; line-height:1.4; }
   .card.soon{ background:#40395f!important; color:#b7b0d8; border-style:dashed; border-color:#6b6398;
@@ -70,7 +71,7 @@
 
   <div id="head">
     <h1>ヘンゲー<br>横丁</h1>
-    <div class="sub">しょうもない ゲーム あつめ <span class="eye">👁️</span></div>
+    <div class="sub">しょうもない ゲーム あつめ <svg width="22" height="16" viewBox="0 0 28 20" style="vertical-align:-2px"><ellipse cx="14" cy="10" rx="12" ry="8" fill="#fff" stroke="#1a1206" stroke-width="2.5"/><circle cx="14" cy="10" r="4" fill="#1a1206"/></svg></div>
   </div>
 
   <div id="grid"></div>
@@ -81,25 +82,43 @@
 <script>
 "use strict";
 (function(){
-  /* ゲーム追加はここに1行足すだけ。ready:false は「じゅんびちゅう」表示。 */
+  /* 絵文字は使わない。アイコンも手描きの小さなSVG。
+     ゲーム追加はここに1行足すだけ。ready:false は「じゅんびちゅう」表示。 */
+  const G = "#1a1206"; // 手描きの黒
+  const ICON = {
+    nobiiru:`<svg width="60" height="58" viewBox="0 0 64 64"><g stroke="${G}" stroke-width="4" stroke-linejoin="round">
+      <path d="M16 58 q-6 -20 16 -22 q22 2 16 22z" fill="#4fae8f"/><rect x="27" y="18" width="10" height="22" fill="#4fae8f"/>
+      <ellipse cx="32" cy="14" rx="11" ry="10" fill="#4fae8f"/></g>
+      <circle cx="28" cy="13" r="2.4" fill="${G}"/><circle cx="36" cy="13" r="2.4" fill="${G}"/></svg>`,
+    mochi:`<svg width="60" height="58" viewBox="0 0 64 64"><g stroke="${G}" stroke-width="4" stroke-linejoin="round">
+      <path d="M12 40 q0 17 20 17 q20 0 20 -17 q-6 -6 -20 -6 q-14 0 -20 6z" fill="#3a2a1a"/>
+      <ellipse cx="32" cy="37" rx="17" ry="5" fill="#f4efe2"/>
+      <g transform="rotate(20 44 20)"><rect x="40" y="6" width="9" height="28" rx="3" fill="#a9793f"/><rect x="35" y="2" width="19" height="10" rx="4" fill="#c99a55"/></g></g></svg>`,
+    soon:`<svg width="54" height="54" viewBox="0 0 64 64"><text x="32" y="47" font-size="42" font-weight="900" text-anchor="middle" fill="#b7b0d8" stroke="${G}" stroke-width="2" paint-order="stroke" font-family="sans-serif">？</text></svg>`,
+  };
   const GAMES = [
-    { href:"nobiiru.html",  emoji:"🫧", name:"のびーる",   tag:"首のばして たべる",   color:"#7fe0c8", ready:true,  badge:"" },
-    { href:"tsukkomi.html", emoji:"👋", name:"ツッコミ",   tag:"リズムで ばしっ",     color:"#ff9d4d", ready:true,  badge:"NEW" },
-    { href:"",              emoji:"❓", name:"じゅんびちゅう", tag:"なにか つくってる",   color:"", ready:false, badge:"" },
-    { href:"",              emoji:"❓", name:"じゅんびちゅう", tag:"なにか つくってる",   color:"", ready:false, badge:"" },
+    { href:"nobiiru.html", icon:ICON.nobiiru, name:"のびーる", tag:"首のばして たべる", color:"#7fe0c8", ready:true,  badge:"" },
+    { href:"mochi.html",   icon:ICON.mochi,   name:"もちつき", tag:"拍で つく・手を つぶすな", color:"#ff8a3d", ready:true,  badge:"NEW" },
+    { href:"",             icon:ICON.soon,    name:"じゅんびちゅう", tag:"筋トレ・相槌・すみません", color:"", ready:false, badge:"" },
+    { href:"",             icon:ICON.soon,    name:"じゅんびちゅう", tag:"どんどん ふえる", color:"", ready:false, badge:"" },
   ];
 
-  // 背景のふわふわ絵文字
-  const BGE = ["🍡","🧦","🚽","👁️","🍣","🪨","👟","🧻","🍤","🦷","🌀","🍕"];
+  // 背景のふわふわ(手描きの雑な形。絵文字は使わない)
+  const BLOB = [
+    `<svg viewBox="0 0 40 40"><path d="M20 4 q14 2 14 16 q0 14 -14 16 q-14 -2 -14 -16 q0 -14 14 -16z" fill="#fff" stroke="#1a1206" stroke-width="3"/></svg>`,
+    `<svg viewBox="0 0 40 40"><path d="M20 3 l5 11 l12 1 l-9 8 l3 12 l-11 -7 l-11 7 l3 -12 l-9 -8 l12 -1z" fill="#fff" stroke="#1a1206" stroke-width="3"/></svg>`,
+    `<svg viewBox="0 0 40 40"><path d="M6 20 q6 -12 14 0 q6 12 14 0" fill="none" stroke="#1a1206" stroke-width="4"/></svg>`,
+  ];
   const bg = document.getElementById("bg");
   for(let i=0;i<12;i++){
     const s=document.createElement("div"); s.className="float";
-    s.textContent = BGE[i%BGE.length];
+    const sz=(34 + (i%4)*14);
+    s.innerHTML = BLOB[i%BLOB.length];
+    const svg=s.firstChild; svg.setAttribute("width",sz); svg.setAttribute("height",sz);
     s.style.left = (i*8.5 % 96) + "%";
     s.style.top  = ((i*37) % 100) + "%";
     s.style.animationDuration = (7 + (i%5)*2.5) + "s";
     s.style.animationDelay = (-i*0.8) + "s";
-    s.style.fontSize = (34 + (i%4)*12) + "px";
     bg.appendChild(s);
   }
 
@@ -113,7 +132,7 @@
     if(g.ready) c.style.background = g.color;
     c.innerHTML =
       (g.badge ? '<div class="badge">'+g.badge+'</div>' : '') +
-      '<div class="emoji">'+g.emoji+'</div>' +
+      '<div class="icon">'+g.icon+'</div>' +
       '<div class="name">'+g.name+'</div>' +
       '<div class="tag">'+g.tag+'</div>';
     c.addEventListener("click", ()=>{
