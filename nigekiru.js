@@ -21,9 +21,11 @@ function interp(o,t){ const fx=o.fx!=null?o.fx:o.x, fy=o.fy!=null?o.fy:o.y;
   return { x: cx(fx)+(cx(o.x)-cx(fx))*t, y: cy(fy)+(cy(o.y)-cy(fy))*t }; }
 
 // 盤の画面配置
-let cell=40, ox=0, oy=0;
-function layout(){ const availW=W-24, availH=H*0.72; cell=Math.floor(Math.min(availW/COLS, availH/ROWS));
-  ox=Math.floor((W-cell*COLS)/2); oy=Math.floor(H*0.16); }
+let cell=40, cellY=26, ox=0, oy=0;
+function layout(){ const availW=W-24, availH=H*0.64;
+  cell=Math.floor(Math.min(availW/COLS, availH/(ROWS*0.62)));
+  cellY=Math.floor(cell*0.62);           // 行を圧縮=斜め見下ろし(立体)
+  ox=Math.floor((W-cell*COLS)/2); oy=Math.floor(H*0.13); }
 
 const key=(x,y)=>x+","+y;
 const inGrid=(x,y)=>x>=0&&x<COLS&&y>=0&&y<ROWS;
@@ -111,37 +113,44 @@ function over(win){ state=S.OVER;
 function updHud(){ document.getElementById('lv').textContent=level; document.getElementById('left').textContent=pursuers.length; }
 
 // ── 描画 ──
-function cx(x){ return ox+x*cell+cell/2; } function cy(y){ return oy+y*cell+cell/2; }
+function cx(x){ return ox+x*cell+cell/2; } function cy(y){ return oy+y*cellY+cellY/2; }
 function draw(){
   ctx.save(); let sx=0,sy=0; if(shake>0){ sx=(Math.random()*2-1)*shake; sy=(Math.random()*2-1)*shake; } ctx.translate(sx,sy);
-  ctx.fillStyle="#e7e0cf"; ctx.fillRect(-20,-20,W+40,H+40);
-  // 盤
-  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){ ctx.fillStyle=(x+y)%2?"#ded5bf":"#e9e1cd";
-    ctx.fillRect(ox+x*cell,oy+y*cell,cell,cell); }
-  ctx.strokeStyle="rgba(0,0,0,.12)"; ctx.lineWidth=1;
-  for(let x=0;x<=COLS;x++){ ctx.beginPath(); ctx.moveTo(ox+x*cell,oy); ctx.lineTo(ox+x*cell,oy+ROWS*cell); ctx.stroke(); }
-  for(let y=0;y<=ROWS;y++){ ctx.beginPath(); ctx.moveTo(ox,oy+y*cell); ctx.lineTo(ox+COLS*cell,oy+y*cell); ctx.stroke(); }
-  ctx.strokeStyle=P.ink; ctx.lineWidth=5; ctx.strokeRect(ox,oy,COLS*cell,ROWS*cell);
+  ctx.fillStyle="#cfc6b0"; ctx.fillRect(-20,-20,W+40,H+40);
+  const bw=COLS*cell, bh=ROWS*cellY, th=Math.max(14,cell*0.34);
+  // 盤の厚み(前面＝立体)
+  ctx.fillStyle="#a89a78"; ctx.fillRect(ox-3,oy+bh,bw+6,th);
+  // 盤面(斜め見下ろし。行を圧縮)
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){ ctx.fillStyle=(x+y)%2?"#ded5bf":"#efe8d6";
+    ctx.fillRect(ox+x*cell,oy+y*cellY,cell,cellY); }
+  ctx.strokeStyle="rgba(0,0,0,.10)"; ctx.lineWidth=1;
+  for(let x=0;x<=COLS;x++){ ctx.beginPath(); ctx.moveTo(ox+x*cell,oy); ctx.lineTo(ox+x*cell,oy+bh); ctx.stroke(); }
+  for(let y=0;y<=ROWS;y++){ ctx.beginPath(); ctx.moveTo(ox,oy+y*cellY); ctx.lineTo(ox+bw,oy+y*cellY); ctx.stroke(); }
+  ctx.strokeStyle=P.ink; ctx.lineWidth=5; ctx.strokeRect(ox,oy,bw,bh);
+  ctx.beginPath(); ctx.moveTo(ox-3,oy+bh+th); ctx.lineTo(ox+bw+3,oy+bh+th); ctx.lineTo(ox+bw+3,oy+bh); ctx.stroke();
 
   if(state===S.PLAY && phase==='idle'){ // 動けるマスを薄く光らせる(入力待ちだけ)
     for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){ const nx=player.x+dx, ny=player.y+dy;
       if(!inGrid(nx,ny)||isJunk(nx,ny)||pursuerAt(nx,ny)) continue;
-      ctx.fillStyle="rgba(255,210,62,.35)"; ctx.fillRect(ox+nx*cell+2,oy+ny*cell+2,cell-4,cell-4); } }
+      ctx.fillStyle="rgba(255,210,62,.42)"; ctx.fillRect(ox+nx*cell+2,oy+ny*cellY+2,cell-4,cellY-4); } }
 
-  // がれき(ぶつかって伸びた山)
-  for(const k of junks){ const [x,y]=k.split(",").map(Number);
-    ctx.fillStyle="#8a94a6"; ctx.strokeStyle=P.ink; ctx.lineWidth=3;
-    ctx.beginPath(); ctx.moveTo(cx(x)-cell*0.34,cy(y)+cell*0.28); ctx.quadraticCurveTo(cx(x),cy(y)-cell*0.3,cx(x)+cell*0.34,cy(y)+cell*0.28); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  // がれき(立体の山＋影)
+  for(const k of junks){ const [x,y]=k.split(",").map(Number); const jx=cx(x), jy=cy(y);
+    ctx.fillStyle="rgba(0,0,0,.18)"; ctx.beginPath(); ctx.ellipse(jx,jy+cell*0.06,cell*0.34,cell*0.15,0,0,7); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(jx-cell*0.34,jy+cell*0.06); ctx.quadraticCurveTo(jx,jy-cell*0.52,jx+cell*0.34,jy+cell*0.06); ctx.closePath();
+    ctx.fillStyle="#8a94a6"; ctx.fill(); ctx.strokeStyle=P.ink; ctx.lineWidth=3; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(jx-cell*0.06,jy-cell*0.2,cell*0.13,cell*0.07,0,0,7); ctx.fillStyle="#adb6c4"; ctx.fill(); }
 
-  // 位置補間(手番アニメ)。追っ手が寄って相打ちへ収束するのが"見える"
+  // 駒: 影を落として立ち上がる。奥(小さいy)→手前(大きいy)の順で描き重なりを出す
   const et = phase==='anim' ? (1-(1-animT)*(1-animT)) : 1;
-  for(const p of pursuers){ const q=interp(p,et);
-    // 待機中、隣接する追っ手は"あぶない"赤リング(次で捕まる緊張)
-    if(phase==='idle' && Math.max(Math.abs(p.x-player.x),Math.abs(p.y-player.y))<=1){
+  const pieces = pursuers.map(p=>({p,pl:false})); pieces.push({p:player,pl:true});
+  pieces.sort((a,b)=>(a.p.y-b.p.y)||(a.p.x-b.p.x));
+  for(const it of pieces){ const q=interp(it.p,et);
+    ctx.fillStyle="rgba(0,0,0,.22)"; ctx.beginPath(); ctx.ellipse(q.x,q.y+cell*0.04,cell*0.3,cell*0.14,0,0,7); ctx.fill();
+    if(!it.pl && phase==='idle' && Math.max(Math.abs(it.p.x-player.x),Math.abs(it.p.y-player.y))<=1){
       ctx.strokeStyle='rgba(255,40,60,'+(0.35+0.35*Math.sin(perfNow()*0.012))+')'; ctx.lineWidth=4;
-      ctx.beginPath(); ctx.arc(q.x,q.y,cell*0.42,0,7); ctx.stroke(); }
-    drawGridPerson(q.x,q.y,cell,"#d64b3a",true); }
-  const pp=interp(player,et); drawGridPerson(pp.x,pp.y,cell,"#ff2d6b",false);
+      ctx.beginPath(); ctx.ellipse(q.x,q.y,cell*0.4,cell*0.22,0,0,7); ctx.stroke(); }
+    drawGridPerson(q.x, q.y-cell*0.4, cell, it.pl?"#ff2d6b":"#d64b3a", !it.pl); }
   // 粒(相打ちの飛沫)
   for(const p of parts){ ctx.globalAlpha=Math.max(0,p.life); ctx.fillStyle="#8a94a6";
     ctx.beginPath(); ctx.arc(p.x,p.y,3.5*p.life+1.5,0,7); ctx.fill(); }
@@ -193,7 +202,7 @@ function onDown(e){ const t=e.target; if(t&&t.closest&&(t.closest('.btn')||t.clo
   if(state!==S.PLAY) return; e.preventDefault();
   const px=e.clientX, py=e.clientY;
   if(Math.hypot(px-teleBtn.x,py-teleBtn.y)<=teleBtn.r){ teleport(); return; }
-  const gx=Math.floor((px-ox)/cell), gy=Math.floor((py-oy)/cell);
+  const gx=Math.floor((px-ox)/cell), gy=Math.floor((py-oy)/cellY);
   if(gx===player.x&&gy===player.y){ tryMove(player.x,player.y); return; } // 待つ
   tryMove(gx,gy);
 }
