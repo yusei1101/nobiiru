@@ -8,6 +8,17 @@
 <meta name="theme-color" content="#4a8fb0">
 <title>もちつき</title>
 <link rel="stylesheet" href="yokocho.css">
+<style>
+  #songs{ overflow:auto; justify-content:flex-start; padding-top:max(60px,env(safe-area-inset-top)); }
+  #songs h1{ font-size:clamp(38px,11vw,66px); }
+  #sngrid{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px; width:100%; max-width:440px; margin-top:8px; }
+  .sng{ border:4px solid #000; border-radius:14px; background:#ff8a3d; color:#2a1206;
+    font-weight:900; font-size:19px; box-shadow:4px 5px 0 #000; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:3px; cursor:pointer; text-align:center; padding:14px 8px; }
+  .sng:active{ transform:translate(3px,4px); box-shadow:1px 1px 0 #000; }
+  .sng small{ font-size:11px; font-weight:700; opacity:.72; }
+  .sng .bw{ color:#0a6b2f; font-size:11px; }
+</style>
 </head>
 <body>
 <div id="wrap">
@@ -23,20 +34,28 @@
   <div id="title" class="screen">
     <h1>もちつき</h1>
     <div class="sub">拍に のって ぺったん。<br>相方の 手は つぶすな。</div>
-    <button class="btn" id="startBtn">はじめる</button>
+    <button class="btn" id="toSongs">きょくを えらぶ</button>
     <div class="pill" style="text-align:left;">
       ・<b>拍（ドン）に あわせて</b> タップ → つく<br>
       ・その あいだ（うら）に <b>相方の手</b>が 入る。そこで 打つと <b>つぶす</b><br>
       ・のると <b>お囃子が 増えて</b> 気持ちいい。コンボを つなげ<br>
-      ・とちゅうで <b>うら打ち</b>など リズムが 変わる
+      ・<b>曲ごと</b>に テンポも リズムも ちがう
     </div>
+  </div>
+
+  <div id="songs" class="screen hidden">
+    <h1>きょく</h1>
+    <div id="sngrid"></div>
   </div>
 
   <div id="gameover" class="screen hidden">
     <h2 id="goTitle">できた</h2>
     <div class="score" id="goDeki"></div>
     <div class="msg" id="goMsg"></div>
-    <button class="btn" id="retryBtn">もういっかい</button>
+    <div class="row" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+      <button class="btn" id="retryBtn">もういっかい</button>
+      <button class="btn" id="backSongs" style="background:#fff">きょくへ</button>
+    </div>
   </div>
 </div>
 
