@@ -159,7 +159,7 @@ function draw(){
     const gy=groundY();
     // あなた(左・ピンク)
     D.creature(ctx,"#ff5c9d",{x:W*0.28,y:gy,scale:1.05,rot:youRot,arm:youArm,
-      mouthOpen:state===S.GO?0.4:0.1, brow:state===S.READY?0.5:0, dead:youDead});
+      mouthOpen:state===S.GO?0.4:0.1, brow:state===S.READY?0.5:0, dead:youDead}, D.buyoBody);
     // 相手(右・格に応じた体)
     D.creature(ctx,foe.cloth,{x:W*0.72,y:gy,scale:1.08,rot:foeRot,arm:foeArm,
       mouthOpen:state===S.GO?0.4:0.1, brow:0.4, dead:foeDead}, foe.body);
@@ -218,5 +218,6 @@ window.__binta={
     waitT=(o&&o.waitT!=null)?o.waitT:1.0; foeRT=(o&&o.foeRT!=null)?o.foeRT:0.4; feints=[]; _elapsedInRound=0; goEl=0; foe=FOES[0]; special=""; return this.snap(); },
   step(dt){ update(dt); return this.snap(); },
   tap(){ tap(); return this.snap(); },
+  draw(){ draw(); return true; },   // 描画経路の例外検出用(プレビュー枠はrAF停止のため)
 };
 })();
