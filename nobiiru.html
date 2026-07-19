@@ -396,8 +396,7 @@ function ease(t){ return t*t*(3-2*t); }
 function draw(){
   const L=curLevel();
   ctx.save();
-  // shake
-  if(shake>0){ ctx.translate((Math.random()-0.5)*shake,(Math.random()-0.5)*shake); }
+  // 画面ゆれは廃止
 
   // sky gradient
   const g=ctx.createLinearGradient(0,0,0,H);

@@ -265,7 +265,7 @@ function endScreen(){ document.getElementById('hud').classList.add('hidden'); do
   document.getElementById('gameover').classList.remove('hidden'); }
 
 function draw(){
-  ctx.save(); let ox=0,oy=0; if(shake>0){ ox=(rnd()*2-1)*shake; oy=(rnd()*2-1)*shake; } ctx.translate(ox,oy);
+  ctx.save();   // 画面ゆれは廃止
   ctx.fillStyle="#a9d3ee"; ctx.fillRect(-20,-20,W+40,bandTop()+20);
   drawBuildings();
   ctx.fillStyle="#e4e0d6"; ctx.fillRect(-20,bandTop(),W+40,H);

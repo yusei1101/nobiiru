@@ -176,7 +176,7 @@ function drawRock(x,y,r){
   ctx.fillStyle=rg; ctx.fill(); ctx.strokeStyle=P.ink; ctx.lineWidth=3; ctx.stroke();
 }
 function draw(){
-  ctx.save(); let sx=0,sy=0; if(shake>0){ sx=(Math.random()*2-1)*shake; sy=(Math.random()*2-1)*shake; } ctx.translate(sx,sy);
+  ctx.save();   // 画面ゆれは廃止
   // 机
   const tg=ctx.createLinearGradient(0,-40,0,H+40); tg.addColorStop(0,'#8a6d47'); tg.addColorStop(1,'#584631'); ctx.fillStyle=tg; ctx.fillRect(-40,-40,W+80,H+80);
   // フィールドの影＋厚み＋マット

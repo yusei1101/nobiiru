@@ -215,7 +215,7 @@ function updHud(){ const w=document.getElementById('stageNum'),l=document.getEle
 
 // ── 描画 ──
 function draw(){
-  ctx.save(); let sx=0,sy=0; if(shake>0){ sx=(Math.random()*2-1)*shake; sy=(Math.random()*2-1)*shake; } ctx.translate(sx,sy);
+  ctx.save();   // 画面ゆれは廃止
   // 背景(道場っぽい淡い)
   const bg=ctx.createLinearGradient(0,0,0,H); bg.addColorStop(0,"#bfe3f2"); bg.addColorStop(1,"#e9ddc2");
   ctx.fillStyle=bg; ctx.fillRect(-20,-20,W+40,H+40);

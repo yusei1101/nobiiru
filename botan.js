@@ -76,7 +76,7 @@ function updHud(){ document.getElementById('round').textContent=round; document.
 const trackY=()=>H*0.62, trackL=()=>W*0.12, trackR=()=>W*0.82;
 function px(prog){ return trackL()+(trackR()-trackL())*prog; }
 function draw(){
-  ctx.save(); let sx=0,sy=0; if(shake>0){ sx=(Math.random()*2-1)*shake; sy=(Math.random()*2-1)*shake; } ctx.translate(sx,sy);
+  ctx.save();   // 画面ゆれは廃止
   ctx.fillStyle="#8fd0e8"; ctx.fillRect(-20,-20,W+40,H*0.66);
   ctx.fillStyle="#d9b25a"; ctx.fillRect(-20,H*0.64,W+40,H);
   ctx.strokeStyle=P.ink; ctx.lineWidth=7; ctx.beginPath(); ctx.moveTo(-10,H*0.64); ctx.lineTo(W+10,H*0.64-4); ctx.stroke();
