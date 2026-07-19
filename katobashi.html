@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="かっとばし">
+<meta name="theme-color" content="#e7e0cf">
+<title>かっとばし</title>
+<link rel="stylesheet" href="yokocho.css">
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <a class="back" href="index.html">← よこちょう</a>
+
+  <div id="hud" class="hidden">
+    <div><div class="lbl">かい</div><div class="big" id="wave">1</div></div>
+    <div class="r"><div class="lbl">のこり 玉</div><div class="big" id="life">3</div></div>
+  </div>
+  <div id="hint" class="hidden">下を なぞって 板を うごかす。玉を 落とすな</div>
+
+  <div id="title" class="screen">
+    <h1>かっとばし</h1>
+    <div class="sub">板で 打ち返して、<br>上の ブロックを くずせ。</div>
+    <button class="btn" id="startBtn">はじめる</button>
+    <div class="pill" style="text-align:left;">
+      ・画面の下を <b>なぞって</b> 板を左右に うごかす<br>
+      ・玉は <b>当てた位置</b>で はね返る角度が 変わる＝ねらえ<br>
+      ・<b>黄「＋」</b>を こわすと 玉が ふえる（大あばれ）<br>
+      ・板に つけず 続けて 崩すほど <b>コンボ</b>で 高得点<br>
+      ・玉を ぜんぶ 落とすと おわり
+    </div>
+  </div>
+
+  <div id="gameover" class="screen hidden">
+    <h2 id="goTitle">おとした！</h2>
+    <div class="score" id="goSub"></div>
+    <div class="msg" id="goMsg"></div>
+    <button class="btn" id="retryBtn">もういっかい</button>
+  </div>
+</div>
+
+<script src="yokocho.js"></script>
+<script src="katobashi.js"></script>
+</body>
+</html>
