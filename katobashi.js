@@ -19,7 +19,7 @@ addEventListener('resize',resize);
 const S={TITLE:0,SERVE:1,PLAY:2,CLEAR:3,OVER:4,STAGES:5}; let state=S.TITLE;
 let stage=1, stageDef=null, wave=1, life=3, score=0, combo=0, comboMax=0, specialRate=0.08;
 let baseSpd=380, clearT=0, serveT=0;
-const paddle={x:0,y:0,w:120,h:16,tx:0};
+const paddle={x:0,y:0,w:120,h:16,tx:0}; let paddleScale=1;
 let balls=[], blocks=[];
 let shake=0, flash=0, flashCol='255,255,255';
 const floats=[], puffs=[];
@@ -57,17 +57,21 @@ const STAGES=[
   {name:"あなあき", pat:8, spd:430, sp:0.13, rows:6},
   {name:"わくわく", pat:7, spd:450, sp:0.14, rows:6},
   {name:"ぎっしり", pat:0, spd:485, sp:0.18, rows:7},
+  // ここから 高難度(玉が速い・板が狭い・固い/多い)
+  {name:"ばくそく", pat:1, spd:545, sp:0.16, rows:6, pw:0.82},
+  {name:"せまい",   pat:6, spd:565, sp:0.15, rows:6, pw:0.58, toughHp:3},
+  {name:"じごく",   pat:0, spd:625, sp:0.22, rows:7, pw:0.70, toughHp:3},
 ];
 const STORE="katobashi.best";
 function bests(){ try{ return JSON.parse(localStorage.getItem(STORE)||"{}")||{}; }catch(e){ return {}; } }
 function saveBest(st,w){ try{ const b=bests(); if(w>(b[st]||0)){ b[st]=w; localStorage.setItem(STORE,JSON.stringify(b)); } }catch(e){} }
 
-function layoutPaddle(){ paddle.w=Math.max(96,Math.min(150,W*0.30)); paddle.h=16; paddle.y=H*0.86;
+function layoutPaddle(){ paddle.w=Math.max(96,Math.min(150,W*0.30))*paddleScale; paddle.h=16; paddle.y=H*0.86;
   if(!paddle.x){ paddle.x=W/2; paddle.tx=W/2; } }
 
 function startStage(n){
   Y.audio.resume(); stage=n; stageDef=STAGES[n-1]||STAGES[0]; wave=1; life=3; score=0; combo=0; comboMax=0;
-  blocks=[]; balls=[]; layoutPaddle(); paddle.x=W/2; paddle.tx=W/2;
+  paddleScale=stageDef.pw||1; blocks=[]; balls=[]; layoutPaddle(); paddle.x=W/2; paddle.tx=W/2;
   document.getElementById('title').classList.add('hidden');
   document.getElementById('stages').classList.add('hidden');
   document.getElementById('gameover').classList.add('hidden');
@@ -94,7 +98,8 @@ function buildWave(){
     else if(roll<specialRate+0.08) type='tough';
     else if(roll<specialRate+0.14 && stage>=2) type='run';
     const t=BTYPE[type];
-    blocks.push({ x:mx+c*(bw+gap), y:top+r*(bh+gap), w:bw, h:bh, hp:t.hp, maxhp:t.hp, type, color:t.color,
+    const hp = type==='tough' ? ((stageDef&&stageDef.toughHp)||2) : t.hp;
+    blocks.push({ x:mx+c*(bw+gap), y:top+r*(bh+gap), w:bw, h:bh, hp:hp, maxhp:hp, type, color:t.color,
       alive:true, vx: type==='run'? (Math.random()<0.5?-1:1)*40 : 0, wob:Math.random()*6 });
   }}
   if(!blocks.length){ for(let c=0;c<cols;c++){ const t=BTYPE.normal;   // 空パターン回避
@@ -330,6 +335,8 @@ window.__kato={
   firstAlive(){ const bl=blocks.find(b=>b.alive); return bl?{x:bl.x,y:bl.y,w:bl.w,h:bl.h,type:bl.type,hp:bl.hp}:null; },
   clearBlocks(){ blocks.forEach(b=>b.alive=false); },
   paddleTo(x){ paddle.x=x; paddle.tx=x; },
+  paddleW(){ return Math.round(paddle.w); },
+  toughHp(){ const bl=blocks.find(b=>b.type==='tough'); return bl?bl.hp:null; },
   killBalls(){ balls.length=0; },
 };
 })();
