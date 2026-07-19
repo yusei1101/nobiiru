@@ -16,8 +16,8 @@ function resize(){ DPR=Math.min(window.devicePixelRatio||1,2.5); W=innerWidth; H
   cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); layoutPaddle(); }
 addEventListener('resize',resize);
 
-const S={TITLE:0,SERVE:1,PLAY:2,CLEAR:3,OVER:4}; let state=S.TITLE;
-let wave=1, life=3, score=0, combo=0, comboMax=0;
+const S={TITLE:0,SERVE:1,PLAY:2,CLEAR:3,OVER:4,STAGES:5}; let state=S.TITLE;
+let stage=1, stageDef=null, wave=1, life=3, score=0, combo=0, comboMax=0, specialRate=0.08;
 let baseSpd=380, clearT=0, serveT=0;
 const paddle={x:0,y:0,w:120,h:16,tx:0};
 let balls=[], blocks=[];
@@ -33,28 +33,72 @@ const BTYPE={
   run:{color:"#d96fae", hp:1},  // 横に逃げる
 };
 
+// ブロックの配置パターン(セルを埋めるか判定)。ステージ/かい ごとに切り替えて多彩に。
+const PATTERNS=[
+  {name:"びっしり", fn:()=>true },
+  {name:"ちどり",   fn:(r,c)=>(r+c)%2===0 },
+  {name:"たてじま", fn:(r,c)=>c%2===0 },
+  {name:"よこじま", fn:(r,c)=>r%2===0 },
+  {name:"やま",     fn:(r,c,rows,cols)=>Math.abs(c-(cols-1)/2) <= (r+1)/rows*((cols-1)/2)+0.5 },
+  {name:"さかやま", fn:(r,c,rows,cols)=>Math.abs(c-(cols-1)/2) <= (rows-r)/rows*((cols-1)/2)+0.5 },
+  {name:"ひしがた", fn:(r,c,rows,cols)=>Math.abs(r-(rows-1)/2)/(rows/2)+Math.abs(c-(cols-1)/2)/(cols/2) <= 1.05 },
+  {name:"わく",     fn:(r,c,rows,cols)=>r===0||r===rows-1||c===0||c===cols-1||r===((rows-1)>>1) },
+  {name:"あなあき", fn:()=>Math.random()<0.7 },
+  {name:"だんだん", fn:(r,c,rows,cols)=>c <= Math.floor((r+1)/rows*cols) },
+];
+// ステージ(選べる)。番号が大きいほど 速く・多く・変則。pat=初回パターンの起点。
+const STAGES=[
+  {name:"きほん",   pat:0, spd:330, sp:0.05, rows:4},
+  {name:"ちどり",   pat:1, spd:350, sp:0.07, rows:4},
+  {name:"やまのぼり",pat:4, spd:365, sp:0.08, rows:5},
+  {name:"すきま",   pat:2, spd:380, sp:0.10, rows:5},
+  {name:"しましま", pat:3, spd:395, sp:0.11, rows:5},
+  {name:"ひしがた", pat:6, spd:410, sp:0.12, rows:6},
+  {name:"あなあき", pat:8, spd:430, sp:0.13, rows:6},
+  {name:"わくわく", pat:7, spd:450, sp:0.14, rows:6},
+  {name:"ぎっしり", pat:0, spd:485, sp:0.18, rows:7},
+];
+const STORE="katobashi.best";
+function bests(){ try{ return JSON.parse(localStorage.getItem(STORE)||"{}")||{}; }catch(e){ return {}; } }
+function saveBest(st,w){ try{ const b=bests(); if(w>(b[st]||0)){ b[st]=w; localStorage.setItem(STORE,JSON.stringify(b)); } }catch(e){} }
+
 function layoutPaddle(){ paddle.w=Math.max(96,Math.min(150,W*0.30)); paddle.h=16; paddle.y=H*0.86;
   if(!paddle.x){ paddle.x=W/2; paddle.tx=W/2; } }
 
-function reset(){ wave=1; life=3; score=0; combo=0; comboMax=0; baseSpd=380; blocks=[]; balls=[];
-  layoutPaddle(); paddle.x=W/2; paddle.tx=W/2; buildWave(); serveBall(); updHud(); }
+function startStage(n){
+  Y.audio.resume(); stage=n; stageDef=STAGES[n-1]||STAGES[0]; wave=1; life=3; score=0; combo=0; comboMax=0;
+  blocks=[]; balls=[]; layoutPaddle(); paddle.x=W/2; paddle.tx=W/2;
+  document.getElementById('title').classList.add('hidden');
+  document.getElementById('stages').classList.add('hidden');
+  document.getElementById('gameover').classList.add('hidden');
+  document.getElementById('hud').classList.remove('hidden');
+  document.getElementById('hint').classList.remove('hidden');
+  buildWave(); serveBall(); updHud();
+}
+function reset(){ startStage(stage); }   // 現ステージを最初から
 
 function buildWave(){
   blocks=[];
-  const cols=6, rows=Math.min(4+Math.floor(wave/2),7);
-  const mx=14, gap=6, top=H*0.12;
-  const bw=(W-mx*2-gap*(cols-1))/cols, bh=24;
+  // このかいの 速度・特殊率(ステージ基準＋かいで上昇)
+  baseSpd=(stageDef?stageDef.spd:340)+(wave-1)*20;
+  specialRate=(stageDef?stageDef.sp:0.08)+(wave-1)*0.01;
+  const cols=6, rows=Math.min((stageDef?stageDef.rows:4)+Math.floor((wave-1)/2),7);
+  const patIdx=((stageDef?stageDef.pat:0)+(wave-1))%PATTERNS.length, pat=PATTERNS[patIdx].fn;
+  const mx=14, gap=6, top=H*0.12, bw=(W-mx*2-gap*(cols-1))/cols, bh=24;
   const palette=['warm','cool','normal'];
   for(let r=0;r<rows;r++){ for(let c=0;c<cols;c++){
+    if(!pat(r,c,rows,cols)) continue;
     let type=palette[(r+c)%palette.length];
     const roll=Math.random();
-    if(roll<0.08+wave*0.01) type='plus';
-    else if(roll<0.16) type='tough';
-    else if(roll<0.22 && wave>=2) type='run';
+    if(roll<specialRate) type='plus';
+    else if(roll<specialRate+0.08) type='tough';
+    else if(roll<specialRate+0.14 && stage>=2) type='run';
     const t=BTYPE[type];
     blocks.push({ x:mx+c*(bw+gap), y:top+r*(bh+gap), w:bw, h:bh, hp:t.hp, maxhp:t.hp, type, color:t.color,
       alive:true, vx: type==='run'? (Math.random()<0.5?-1:1)*40 : 0, wob:Math.random()*6 });
   }}
+  if(!blocks.length){ for(let c=0;c<cols;c++){ const t=BTYPE.normal;   // 空パターン回避
+    blocks.push({x:mx+c*(bw+gap),y:top,w:bw,h:bh,hp:1,maxhp:1,type:'normal',color:t.color,alive:true,vx:0,wob:0}); } }
 }
 
 function serveBall(){ state=S.SERVE; serveT=0.7; combo=0;
@@ -67,7 +111,8 @@ function launch(){ const b=balls[0]; if(!b||!b.stuck) return; b.stuck=false;
 function addBall(x,y,vx,vy,big){ if(balls.length>=7) return;
   balls.push({x,y,vx,vy,r:big?15:10,big:!!big,stuck:false,trail:[]}); }
 
-function spd(){ return baseSpd + (wave-1)*36; }
+function spd(){ return baseSpd; }
+function renorm(b){ const s=spd(), m=Math.hypot(b.vx,b.vy); if(m>0){ b.vx=b.vx/m*s; b.vy=b.vy/m*s; } }
 
 function hitPaddle(b){
   const off=Math.max(-1,Math.min(1,(b.x-paddle.x)/(paddle.w/2)));
@@ -134,6 +179,16 @@ function update(dt){
     if(b.y-b.r>H+20){ balls.splice(i,1); }
   }
 
+  // 玉どうしの衝突(重なったら はじく)
+  for(let i=0;i<balls.length;i++){ for(let j=i+1;j<balls.length;j++){
+    const a=balls[i],b=balls[j], dx=b.x-a.x, dy=b.y-a.y, rr=a.r+b.r, d2=dx*dx+dy*dy;
+    if(d2>0.0001 && d2<rr*rr){ const d=Math.sqrt(d2), nx=dx/d, ny=dy/d, push=(rr-d)/2;
+      a.x-=nx*push; a.y-=ny*push; b.x+=nx*push; b.y+=ny*push;   // めり込み解消
+      const rel=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;
+      if(rel<0){ a.vx+=rel*nx; a.vy+=rel*ny; b.vx-=rel*nx; b.vy-=rel*ny; renorm(a); renorm(b);
+        Y.audio.tone(300,0.03,'square',0.12); } }
+  }}
+
   // 玉ぜんぶ落ちた
   if(balls.length===0){ life--; updHud();
     if(life<=0){ over(); } else { shake=10; flash=0.3; flashCol='255,80,90'; Y.sfx.bad(); Y.say(["あー","おしい","落とした"][life%3],{char:'ossan',interrupt:true}); serveBall(); }
@@ -144,9 +199,9 @@ function update(dt){
     addFloat(W/2,H*0.5,"クリア！",P.pop,true); Y.sfx.good(); Y.say("よし つぎ！",{char:'niisan',interrupt:true}); }
 }
 
-function over(){ state=S.OVER;
-  document.getElementById('goTitle').textContent = wave>=5?"かっとばし名人！":"おとした！";
-  document.getElementById('goSub').textContent = score+" てん（"+wave+"かい・さいだいコンボ "+comboMax+"）";
+function over(){ state=S.OVER; saveBest(stage,wave);
+  document.getElementById('goTitle').textContent = wave>=6?"かっとばし名人！":"おとした！";
+  document.getElementById('goSub').textContent = score+" てん（ステージ"+stage+"・"+wave+"かい・コンボ"+comboMax+"）";
   document.getElementById('goMsg').textContent = comboMax>=8?"すごい連鎖だった。":"板から 目を はなすな。";
   Y.say(wave>=5?"おみごと":"おーわりっ",{char:'ossan',interrupt:true});
   document.getElementById('hud').classList.add('hidden'); document.getElementById('hint').classList.add('hidden');
@@ -155,8 +210,8 @@ function over(){ state=S.OVER;
 function addFloat(x,y,text,col,big){ floats.push({x,y,text,col,big:!!big,life:1,vy:-42}); }
 function puff(x,y,col){ for(let i=0;i<7;i++){ const a=Math.random()*7,s=40+Math.random()*120;
   puffs.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-60,life:1,col}); } shake=Math.max(shake,5); }
-function updHud(){ const w=document.getElementById('wave'),l=document.getElementById('life');
-  if(w)w.textContent=wave; if(l)l.textContent=life; }
+function updHud(){ const w=document.getElementById('stageNum'),l=document.getElementById('life');
+  if(w)w.textContent=stage; if(l)l.textContent=life; }
 
 // ── 描画 ──
 function draw(){
@@ -232,17 +287,27 @@ function shade(hex,amt){ let h=hex.replace('#',''); if(h.length===3)h=h.split(''
   const f=amt<0?0:255,t=Math.abs(amt); r=Math.round(r+(f-r)*t); g=Math.round(g+(f-g)*t); b=Math.round(b+(f-b)*t);
   return `rgb(${r},${g},${b})`; }
 
+// ステージ選択(すみません方式)
+function buildStages(){ const g=document.getElementById('stgrid'); g.innerHTML="";
+  const b=bests();
+  STAGES.forEach((s,i)=>{ const n=i+1; const el=document.createElement('div'); el.className="stg";
+    el.innerHTML='<div class="no">'+n+'</div>'+s.name + (b[n]?'<div class="bw">さいこう '+b[n]+'かい</div>':'<small>&nbsp;</small>');
+    el.addEventListener('click',()=>startStage(n)); g.appendChild(el); });
+}
+function showStages(){ buildStages();
+  document.getElementById('title').classList.add('hidden'); document.getElementById('gameover').classList.add('hidden');
+  document.getElementById('hud').classList.add('hidden'); document.getElementById('hint').classList.add('hidden');
+  document.getElementById('stages').classList.remove('hidden'); state=S.STAGES; }
+
 // 入力: 下をなぞって板を動かす。タップで発射も。
 function setT(e){ const px=(e.touches?e.touches[0].clientX:e.clientX); paddle.tx=px; }
-addEventListener('pointerdown',e=>{ const t=e.target; if(t&&t.closest&&(t.closest('.btn')||t.closest('.back'))) return;
+addEventListener('pointerdown',e=>{ const t=e.target; if(t&&t.closest&&(t.closest('.btn')||t.closest('.back')||t.closest('.stg'))) return;
+  if(state!==S.PLAY && state!==S.SERVE) return;
   e.preventDefault(); setT(e); if(state===S.SERVE) launch(); },{passive:false});
 addEventListener('pointermove',e=>{ if(state===S.PLAY||state===S.SERVE){ setT(e); } },{passive:false});
-document.getElementById('startBtn').addEventListener('click',e=>{e.stopPropagation();
-  Y.audio.resume(); document.getElementById('title').classList.add('hidden'); document.getElementById('gameover').classList.add('hidden');
-  document.getElementById('hud').classList.remove('hidden'); document.getElementById('hint').classList.remove('hidden'); reset(); });
-document.getElementById('retryBtn').addEventListener('click',e=>{e.stopPropagation();
-  document.getElementById('gameover').classList.add('hidden'); document.getElementById('hud').classList.remove('hidden');
-  document.getElementById('hint').classList.remove('hidden'); reset(); });
+document.getElementById('toStages').addEventListener('click',e=>{e.stopPropagation(); Y.audio.resume(); showStages(); });
+document.getElementById('backStages').addEventListener('click',e=>{e.stopPropagation(); showStages(); });
+document.getElementById('retryBtn').addEventListener('click',e=>{e.stopPropagation(); reset(); });
 
 resize();
 let tPrev=performance.now();
@@ -251,12 +316,16 @@ requestAnimationFrame(frame);
 
 // テスト用フック(描画経路も含めて検証できるように draw も公開)
 window.__kato={
-  snap(){ return {state,wave,life,score,combo,balls:balls.length,alive:blocks.filter(b=>b.alive).length}; },
-  start(){ document.getElementById('startBtn').dispatchEvent(new MouseEvent('click',{bubbles:true})); return this.snap(); },
+  snap(){ return {state,stage,wave,life,score,combo,balls:balls.length,alive:blocks.filter(b=>b.alive).length}; },
+  start(n){ startStage(n||1); return this.snap(); },
+  showStages(){ showStages(); return {state, buttons:document.querySelectorAll('#stgrid .stg').length}; },
+  stagesCount(){ return STAGES.length; },
+  patternsCount(){ return PATTERNS.length; },
   step(dt){ update(dt); return this.snap(); },
   draw(){ draw(); return true; },
   // 玉を任意状態に(検証用)
   setBall(i,o){ if(balls[i]) Object.assign(balls[i],o); return this.snap(); },
+  addBall2(x,y,vx,vy){ addBall(x,y,vx,vy,false); return balls.length; },
   ballInfo(i){ const b=balls[i]; return b?{x:Math.round(b.x),y:Math.round(b.y),vx:Math.round(b.vx),vy:Math.round(b.vy),stuck:b.stuck}:null; },
   firstAlive(){ const bl=blocks.find(b=>b.alive); return bl?{x:bl.x,y:bl.y,w:bl.w,h:bl.h,type:bl.type,hp:bl.hp}:null; },
   clearBlocks(){ blocks.forEach(b=>b.alive=false); },
