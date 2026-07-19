@@ -110,54 +110,64 @@ function update(dt){
 }
 
 // ── 描画(机の上の立体フィールド。目盛り無し) ──
-// 逃げる人(player)と 追う人(pursuer)を 別の絵に描き分ける
-function drawPerson(x,y,color,kind){
-  const r=R_PL*1.05, chase=(kind==='pursuer'), t=performance.now()*0.02;
-  const swing=Math.sin(t + x*0.05)*0.4;  // 手足のパタパタ
-  ctx.fillStyle="rgba(0,0,0,.24)"; ctx.beginPath(); ctx.ellipse(x,y+r*0.1,r*1.0,r*0.42,0,0,7); ctx.fill();
-  ctx.save(); ctx.translate(x,y-r*1.1);
-  // 足
-  ctx.strokeStyle=P.ink; ctx.lineWidth=Math.max(2,r*0.28); ctx.lineCap="round";
-  ctx.beginPath(); ctx.moveTo(-r*0.4,r*0.5); ctx.lineTo(-r*0.4+swing*r*0.5,r*1.1);
-  ctx.moveTo(r*0.4,r*0.5); ctx.lineTo(r*0.4-swing*r*0.5,r*1.1); ctx.stroke();
-  // 腕(描き分け)。追う=前に伸ばして掴む / 逃げる=後ろへ振る
-  ctx.lineWidth=Math.max(3,r*0.24); const hands=[];
-  if(chase){
-    ctx.beginPath(); ctx.moveTo(-r*0.55,r*0.05); ctx.quadraticCurveTo(-r*0.95,-r*0.3,-r*0.75,-r*0.75-swing*r*0.3);
-    ctx.moveTo(r*0.55,r*0.05); ctx.quadraticCurveTo(r*0.95,-r*0.3,r*0.75,-r*0.75+swing*r*0.3); ctx.stroke();
-    hands.push([-r*0.75,-r*0.75-swing*r*0.3],[r*0.75,-r*0.75+swing*r*0.3]);
-  } else {
-    ctx.beginPath(); ctx.moveTo(-r*0.55,r*0.05); ctx.quadraticCurveTo(-r*1.0,r*0.1,-r*0.7,r*0.55+swing*r*0.3);
-    ctx.moveTo(r*0.55,r*0.05); ctx.quadraticCurveTo(r*1.0,-r*0.4,r*0.6,-r*0.85+swing*r*0.3); ctx.stroke();
-    hands.push([-r*0.7,r*0.55+swing*r*0.3],[r*0.6,-r*0.85+swing*r*0.3]);
-  }
-  // 胴
-  ctx.beginPath(); ctx.moveTo(-r*0.7,r*0.6); ctx.quadraticCurveTo(-r*0.8,-r*0.3,0,-r*0.4);
-  ctx.quadraticCurveTo(r*0.8,-r*0.3,r*0.7,r*0.6); ctx.quadraticCurveTo(0,r*0.8,-r*0.7,r*0.6);
-  const bg=ctx.createLinearGradient(-r*0.6,-r*0.4,r*0.6,r*0.6); bg.addColorStop(0,shade(color,0.28)); bg.addColorStop(0.55,color); bg.addColorStop(1,shade(color,-0.32));
-  ctx.fillStyle=bg; ctx.fill(); ctx.lineWidth=Math.max(2,r*0.2); ctx.strokeStyle=P.ink; ctx.stroke();
-  // 手先の玉
-  ctx.fillStyle=shade(color,-0.08); ctx.strokeStyle=P.ink; ctx.lineWidth=2;
-  for(const h of hands){ ctx.beginPath(); ctx.arc(h[0],h[1],r*0.16,0,7); ctx.fill(); ctx.stroke(); }
-  // 頭
-  const hg=ctx.createLinearGradient(0,-r*1.1,0,-r*0.3); hg.addColorStop(0,"#ffe0c0"); hg.addColorStop(1,"#dca878");
-  ctx.beginPath(); ctx.arc(0,-r*0.7,r*0.55,0,7); ctx.fillStyle=hg; ctx.fill(); ctx.strokeStyle=P.ink; ctx.lineWidth=Math.max(2,r*0.16); ctx.stroke();
-  ctx.beginPath(); ctx.arc(0,-r*0.8,r*0.57,Math.PI*1.05,Math.PI*1.95); ctx.fillStyle=chase?"#3a2018":"#2b2320"; ctx.fill();
-  // 顔(描き分け)
-  ctx.fillStyle=P.ink;
-  if(chase){ // 怒り: 細い目＋つり眉＋歯むき
-    ctx.beginPath(); ctx.moveTo(-r*0.32,-r*0.78); ctx.lineTo(-r*0.08,-r*0.7); ctx.lineTo(-r*0.32,-r*0.7); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(r*0.32,-r*0.78); ctx.lineTo(r*0.08,-r*0.7); ctx.lineTo(r*0.32,-r*0.7); ctx.fill();
-    ctx.strokeStyle=P.ink; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-r*0.34,-r*0.96); ctx.lineTo(-r*0.06,-r*0.84); ctx.moveTo(r*0.34,-r*0.96); ctx.lineTo(r*0.06,-r*0.84); ctx.stroke();
-    // 歯むき出しの口
-    ctx.fillStyle="#7a1c12"; ctx.beginPath(); ctx.ellipse(0,-r*0.48,r*0.24,r*0.12,0,0,7); ctx.fill();
-    ctx.fillStyle="#fff"; for(let k=-2;k<=2;k++){ ctx.fillRect(k*r*0.09-r*0.03,-r*0.56,r*0.06,r*0.08); }
-  } else { // 慌て: 丸い見開き目＋小さい口＋汗
-    ctx.beginPath(); ctx.arc(-r*0.2,-r*0.74,r*0.12,0,7); ctx.arc(r*0.2,-r*0.74,r*0.12,0,7); ctx.fillStyle=P.ink; ctx.fill();
-    ctx.fillStyle="#7a1c12"; ctx.beginPath(); ctx.arc(0,-r*0.5,r*0.09,0,7); ctx.fill();
-    ctx.fillStyle="#8ed6ff"; ctx.beginPath(); ctx.moveTo(r*0.42,-r*0.85); ctx.quadraticCurveTo(r*0.52,-r*0.72,r*0.42,-r*0.66); ctx.quadraticCurveTo(r*0.34,-r*0.74,r*0.42,-r*0.85); ctx.fill();
-  }
+// 丸くて可愛いゼリー。逃げる=にこっと慌て / 追う=こっちをロックオンした真剣プニ。
+// 気持ち悪さゼロ、大きな目とツヤで「かわいい鬼ごっこ」に。
+function drawCutie(x,y,color,kind){
+  const R=R_PL*1.25, chase=(kind==='pursuer'), t=performance.now()*0.006;
+  const ph=t*3 + x*0.05 + y*0.03;
+  const sq=1 + Math.sin(ph)*0.08;         // ぷにぷに(縦伸び)
+  const bob=Math.sin(ph)*R*0.06;
+  // 影
+  ctx.fillStyle="rgba(0,0,0,.20)"; ctx.beginPath(); ctx.ellipse(x,y,R*0.92,R*0.32,0,0,7); ctx.fill();
+  const cy=y-R*0.80+bob;
+  // 体(まる〜いゼリー)
+  ctx.save(); ctx.translate(x,cy); ctx.scale(1/Math.sqrt(sq),sq);
+  ctx.beginPath();
+  ctx.moveTo(-R,R*0.15);
+  ctx.bezierCurveTo(-R*1.06,-R*1.15, R*1.06,-R*1.15, R,R*0.15);
+  ctx.bezierCurveTo(R*0.92,R*0.9, -R*0.92,R*0.9, -R,R*0.15);
+  ctx.closePath();
+  const g=ctx.createRadialGradient(-R*0.32,-R*0.55,R*0.2, 0,0,R*1.5);
+  g.addColorStop(0,shade(color,0.42)); g.addColorStop(0.55,color); g.addColorStop(1,shade(color,-0.20));
+  ctx.fillStyle=g; ctx.fill();
+  ctx.lineWidth=Math.max(2.5,R*0.10); ctx.strokeStyle=shade(color,-0.5); ctx.stroke();
+  // ツヤ
+  ctx.fillStyle="rgba(255,255,255,.55)"; ctx.beginPath(); ctx.ellipse(-R*0.38,-R*0.5,R*0.26,R*0.15,-0.5,0,7); ctx.fill();
   ctx.restore();
+  // ── 顔(squashの影響を受けない素直な座標で) ──
+  const fy=cy-R*0.08, dark="#2a2530";
+  // 視線: 追う人はプレイヤーを、逃げる人は進む先を見る
+  let lx=0, ly=0.2;
+  if(chase){ const dx=player.x-x, dy=player.y-y, d=Math.hypot(dx,dy)||1; lx=dx/d; ly=dy/d; }
+  else { const dx=player.tx-x, dy=player.ty-y, d=Math.hypot(dx,dy); if(d>6){ lx=dx/d; ly=dy/d; } }
+  const eDX=R*0.40, eY=fy-R*0.06, eR=R*0.30;
+  for(const s of [-1,1]){
+    // 白目
+    ctx.fillStyle="#fff"; ctx.beginPath(); ctx.ellipse(x+s*eDX,eY,eR,eR*1.12,0,0,7); ctx.fill();
+    ctx.strokeStyle=shade(color,-0.5); ctx.lineWidth=1.6; ctx.stroke();
+    // 瞳
+    const px2=x+s*eDX+lx*eR*0.42, py2=eY+ly*eR*0.42, pr=eR*(chase?0.46:0.56);
+    ctx.fillStyle=dark; ctx.beginPath(); ctx.arc(px2,py2,pr,0,7); ctx.fill();
+    // キラッ
+    ctx.fillStyle="rgba(255,255,255,.95)"; ctx.beginPath(); ctx.arc(px2-pr*0.35,py2-pr*0.4,pr*0.34,0,7); ctx.fill();
+  }
+  // ほっぺ(ぽわっ)
+  ctx.fillStyle="rgba(255,120,150,.35)";
+  ctx.beginPath(); ctx.ellipse(x-eDX*1.05,fy+R*0.28,R*0.16,R*0.10,0,0,7); ctx.ellipse(x+eDX*1.05,fy+R*0.28,R*0.16,R*0.10,0,0,7); ctx.fill();
+  if(chase){
+    // やる気まゆ(可愛い程度のハの字下げ)＋にっと口
+    ctx.strokeStyle=dark; ctx.lineWidth=Math.max(2,R*0.08); ctx.lineCap="round";
+    ctx.beginPath(); ctx.moveTo(x-eDX-eR*0.5,eY-eR*1.05); ctx.lineTo(x-eDX+eR*0.35,eY-eR*0.8);
+    ctx.moveTo(x+eDX+eR*0.5,eY-eR*1.05); ctx.lineTo(x+eDX-eR*0.35,eY-eR*0.8); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x,fy+R*0.4,R*0.16,0.15*Math.PI,0.85*Math.PI); ctx.stroke(); // にっ
+  } else {
+    // 小さい丸口(ほへっ)
+    ctx.fillStyle=dark; ctx.beginPath(); ctx.ellipse(x,fy+R*0.42,R*0.09,R*0.12,0,0,7); ctx.fill();
+    // 汗ひとしずく(可愛い水色)
+    ctx.fillStyle="#8ed6ff"; ctx.beginPath();
+    ctx.moveTo(x+eDX*1.2,eY-eR*0.6); ctx.quadraticCurveTo(x+eDX*1.35,eY-eR*0.1,x+eDX*1.2,eY+eR*0.05);
+    ctx.quadraticCurveTo(x+eDX*1.06,eY-eR*0.2,x+eDX*1.2,eY-eR*0.6); ctx.fill();
+  }
 }
 function drawRock(x,y,r){
   ctx.fillStyle="rgba(0,0,0,.22)"; ctx.beginPath(); ctx.ellipse(x,y+r*0.4,r*1.15,r*0.5,0,0,7); ctx.fill();
@@ -188,7 +198,7 @@ function draw(){
       if(!it.pl && state===S.PLAY && Math.hypot(o.x-player.x,o.y-player.y)<R_PL*4){
         ctx.strokeStyle='rgba(255,40,60,'+(0.3+0.35*Math.sin(performance.now()*0.012))+')'; ctx.lineWidth=4;
         ctx.beginPath(); ctx.ellipse(o.x,o.y+2,R_PU*1.5,R_PU*0.8,0,0,7); ctx.stroke(); }
-      drawPerson(o.x,o.y,it.pl?"#ff2d6b":"#b83a2a", it.pl?'player':'pursuer'); }
+      drawCutie(o.x,o.y,it.pl?"#ff6aa8":"#6c7bff", it.pl?'player':'pursuer'); }
     for(const p of parts){ ctx.globalAlpha=Math.max(0,p.life); ctx.fillStyle="#8a94a6"; ctx.beginPath(); ctx.arc(p.x,p.y,3.5*p.life+1.5,0,7); ctx.fill(); }
     ctx.globalAlpha=1;
   }
