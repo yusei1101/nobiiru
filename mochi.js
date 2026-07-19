@@ -22,28 +22,38 @@ const NOTE={ C3:130.81,D3:146.83,E3:164.81,F3:174.61,G3:196.00,A3:220.00,B3:246.
   C4:261.63,D4:293.66,E4:329.63,F4:349.23,G4:392.00,A4:440.00,B4:493.88,
   C5:523.25,D5:587.33,E5:659.25,F5:698.46,G5:783.99,A5:880.00, 0:0 };
 
-// 曲(それぞれ テンポ・メロディ・ベース・リズム構成 が別)。mel=8分,bass=4分。
+// リズム譜(不規則)。1小節=8個の8分。P=つく / H=手が入る(打つな) / .=休み
+const PAT={
+  reg:   "PHPHPHPH",   // きほん(4つ打ち)
+  rest:  "PHP.PHP.",   // 休みが入る
+  sync:  "PHPPHPH.",   // 食う(8分シンコペ)
+  funk:  "P.HPPHP.",   // ファンク
+  sparse:"PH..PH..",   // すかすか
+  off:   ".PHP.PHP",   // うら起点
+  busy:  "PHPPHPPH",   // つめこみ
+};
+// 曲(テンポ・メロディ・ベース・リズム構成 が別)。mel=つく所で鳴る旋律。
 const SONGS=[
   { name:"おまつり", bpm:104, color:"#ff8a3d",
-    mel:['E4','G4','A4','G4','E4','D4','E4',0, 'G4','A4','C5','A4','G4','E4','D4',0],
+    mel:['E4','G4','A4','G4','E4','D4','E4','G4','A4','G4','E4','D4','C4','D4','E4','G4'],
     bass:['C3','C3','G3','G3','A3','A3','G3','G3'],
-    sections:[{name:"よいしょ",beats:12,pat:"beat"},{name:"のってきた",beats:12,pat:"beat"},{name:"うら",beats:8,pat:"off"},{name:"フィナーレ",beats:12,pat:"beat"}] },
+    sections:[{name:"よいしょ",beats:12,pat:PAT.reg},{name:"のってきた",beats:12,pat:PAT.rest},{name:"はねる",beats:8,pat:PAT.sync},{name:"フィナーレ",beats:12,pat:PAT.reg}] },
   { name:"はやうち", bpm:134, color:"#e0603f",
-    mel:['C5','C5','G4','G4','A4','A4','G4',0, 'E4','E4','G4','G4','C5',0,'A4',0],
+    mel:['C5','G4','A4','G4','E4','G4','C5','A4','G4','E4','G4','A4','C5','A4','G4','E4'],
     bass:['A3','A3','F3','F3','G3','G3','C4','C4'],
-    sections:[{name:"よーい",beats:12,pat:"beat"},{name:"かっとび",beats:12,pat:"beat"},{name:"うら",beats:10,pat:"off"},{name:"ラスト",beats:14,pat:"beat"}] },
+    sections:[{name:"よーい",beats:12,pat:PAT.reg},{name:"かっとび",beats:12,pat:PAT.busy},{name:"きざむ",beats:10,pat:PAT.sync},{name:"ラスト",beats:14,pat:PAT.busy}] },
   { name:"のんびり", bpm:86, color:"#4fae8f",
-    mel:['G4',0,'E4',0,'D4',0,'E4',0, 'G4',0,'A4',0,'G4',0,'E4',0],
-    bass:['C3',0,'G3',0,'A3',0,'F3',0],
-    sections:[{name:"ゆるり",beats:10,pat:"beat"},{name:"うらり",beats:10,pat:"off"},{name:"ほのぼの",beats:10,pat:"beat"},{name:"しめ",beats:12,pat:"beat"}] },
+    mel:['G4','E4','D4','E4','G4','A4','G4','E4','D4','E4','G4','A4','C5','A4','G4','E4'],
+    bass:['C3','C3','G3','G3','A3','A3','F3','F3'],
+    sections:[{name:"ゆるり",beats:10,pat:PAT.rest},{name:"すきま",beats:10,pat:PAT.sparse},{name:"うらり",beats:10,pat:PAT.off},{name:"しめ",beats:12,pat:PAT.rest}] },
   { name:"わっしょい", bpm:120, color:"#ffcf3f",
-    mel:['G4','A4','G4','E4','D4','E4','G4',0, 'C5','A4','G4','A4','G4','E4','G4',0],
+    mel:['G4','A4','G4','E4','D4','E4','G4','A4','C5','A4','G4','A4','G4','E4','D4','E4'],
     bass:['G3','G3','G3','G3','C3','C3','C3','C3'],
-    sections:[{name:"わっ",beats:12,pat:"beat"},{name:"しょい",beats:8,pat:"off"},{name:"おおいり",beats:12,pat:"beat"},{name:"どっと",beats:12,pat:"beat"}] },
+    sections:[{name:"わっ",beats:12,pat:PAT.reg},{name:"しょい",beats:8,pat:PAT.sync},{name:"おおいり",beats:12,pat:PAT.funk},{name:"どっと",beats:12,pat:PAT.busy}] },
   { name:"うらファンク", bpm:112, color:"#9b6dd6",
-    mel:[0,'E4',0,'G4',0,'A4','G4',0, 0,'E4',0,'D4',0,'C4','D4',0],
-    bass:['E3',0,'E3','G3',0,'A3',0,'G3'],
-    sections:[{name:"のり",beats:10,pat:"beat"},{name:"うらへ",beats:12,pat:"off"},{name:"ずらし",beats:10,pat:"off"},{name:"きめ",beats:12,pat:"beat"}] },
+    mel:['E4','G4','A4','G4','E4','D4','C4','D4','E4','G4','A4','C5','A4','G4','E4','D4'],
+    bass:['E3','E3','G3','G3','A3','A3','G3','G3'],
+    sections:[{name:"のり",beats:10,pat:PAT.off},{name:"ずらし",beats:12,pat:PAT.funk},{name:"うらへ",beats:10,pat:PAT.off},{name:"きめ",beats:12,pat:PAT.sync}] },
 ];
 
 const S={TITLE:0,SONGS:1,PLAY:2,OVER:3}; let state=S.TITLE;
@@ -65,31 +75,37 @@ const usuY=()=>H*0.6, cxc=()=>W*0.5;
 function section(){ return secList[Math.max(0,Math.min(secList.length-1,secIdx))]; }
 function curInten(){ return Math.min(4, Math.max(0,secIdx) + (nori>0.7?1:0)); }
 
-// リズム判定(純粋関数)。表打ちなら拍(0,1)で つく・うら(0.5)は手。うら打ちは逆。
-function cdist(ph, targets){ let m=1; for(const t of targets){ let d=Math.abs(ph-t); d=Math.min(d,1-d); if(d<m)m=d; } return m; }
-function judge(b, pat){ const ph=((b%1)+1)%1;
-  const pound = pat==='off' ? [0.5] : [0,1];
-  const hand  = pat==='off' ? [0,1] : [0.5];
-  const dHand=cdist(ph,hand), dPound=cdist(ph,pound);
-  if(dHand<0.13) return 'smash';
-  if(dPound<0.06) return 'perfect';
-  if(dPound<0.13) return 'good';
-  return 'whiff';
+// 譜面判定(純粋関数)。b=拍位置→8分スロット。最寄りスロットの種類で判定。
+function slotType(pat,k){ const L=pat.length; return pat[((k%L)+L)%L]; }
+function pIndexAt(pat,k){ const L=pat.length; let per=0; for(const c of pat) if(c==='P')per++;
+  const full=Math.floor(k/L), rem=((k%L)+L)%L; let cnt=full*per; for(let i=0;i<rem;i++) if(pat[i]==='P')cnt++; return cnt; }
+function judge(b, pat){ const e=b*2, nearest=Math.round(e), dE=Math.abs(e-nearest);
+  if(dE>0.30) return 'whiff';                 // スロットの間＝すかっ(安全)
+  const t=slotType(pat,nearest);
+  if(t==='H') return 'smash';                 // 手のスロットで打った＝つぶす
+  if(t==='.') return 'whiff';                 // 休みで打った
+  return dE<0.12?'perfect':'good';            // P=つく
 }
-function handIn(ph,pat){ const hand=pat==='off'?[0,1]:[0.5]; const d=cdist(ph,hand); return Math.max(0,1-d/0.5); }
+function handIn(b,pat){ const e=b*2, L=pat.length; let minD=99;   // 最寄りHスロットへの近さ→手の出具合
+  for(let i=0;i<L;i++){ if(pat[i]==='H'){ let d=Math.abs(((e-i)%L+L)%L); d=Math.min(d,L-d); if(d<minD)minD=d; } }
+  return minD===99?0:Math.max(0,1-minD/1.0); }
+// 出力遅延の補正(スマホは鳴った音が currentTime より遅れて聞こえる)
+function audioLat(){ const ac=Y.audio.ctx&&Y.audio.ctx(); if(!ac) return 0;
+  let l=(ac.outputLatency||0)+(ac.baseLatency||0); return (l>0)?Math.min(0.25,l):0; }
 
 // お囃子＋メロディ(拍の音を audio時刻に予約=ズレない)。曲ごとに旋律が変わる。
 function playNote(name,at,type,vol,dur){ const f=NOTE[name]; if(!f) return; Y.audio.tone(f,dur||0.18,type,vol,at); }
 function onBeat(n,at){ const spb=R.spb, bib=((n%4)+4)%4;
-  Y.audio.tone(150,0.17,'sine',0.5,at);                 // ドン(表)
-  Y.audio.noise(0.03,0.10,at+spb/2,7000);               // チッ(うら)
-  // メロディ(曲固有・8分)＋ベース(4分)
-  const mel=song.mel, bass=song.bass;
-  playNote(mel[(2*n)%mel.length],   at,        'triangle', 0.13, spb*0.9);
-  playNote(mel[(2*n+1)%mel.length], at+spb/2,  'triangle', 0.11, spb*0.5);
-  playNote(bass[n%bass.length],     at,        'sine',     0.22, spb*1.1);
-  const inten=curInten();
-  if(inten>=1 && (bib===1||bib===3)) Y.audio.noise(0.05,0.22,at,2500);      // 手拍子 2・4
+  Y.audio.tone(150,0.16,'sine',0.42,at);                // ドン=拍の芯(常時の脈)
+  Y.audio.noise(0.03,0.07,at+spb/2,7000);               // うすいハット
+  const pat=section().pat, mel=song.mel, bass=song.bass, inten=curInten();
+  // つく所(P)にメロディ＋木魚ガイド＝「叩くリズム」を耳で示す(不規則でも取れる)
+  for(const p of [[2*n,0],[2*n+1,0.5]]){ const k=p[0];
+    if(slotType(pat,k)==='P'){ const t=at+p[1]*spb;
+      playNote(mel[pIndexAt(pat,k)%mel.length], t, 'triangle', 0.16, spb*0.55);
+      Y.audio.noise(0.015,0.10, t, 5000); } }
+  playNote(bass[n%bass.length], at, 'sine', 0.22, spb*1.1);
+  if(inten>=1 && (bib===1||bib===3)) Y.audio.noise(0.05,0.20,at,2500);      // 手拍子 2・4
   if(inten>=2){ Y.audio.noise(0.02,0.05,at+spb/4,9000); Y.audio.noise(0.02,0.05,at+spb*3/4,9000); }
   if(inten>=4 && n%8===0) Y.audio.tone(220,0.12,'square',0.14,at);          // 賑やかし
   if(bib===2 && state===S.PLAY) setTimeout(()=>{ if(state===S.PLAY) Y.say("あいよ",{char:'niisan',volume:0.6}); }, spb*500);
@@ -117,7 +133,8 @@ function finish(){ state=S.OVER; R.stop(); saveBest(curSong,bestCombo);
   document.getElementById('gameover').classList.remove('hidden'); }
 
 function tap(){
-  if(state!==S.PLAY) return; const b=R.beat(); if(b<0) return;
+  if(state!==S.PLAY) return; const raw=R.beat(); if(raw<0) return;
+  const b=raw - audioLat()/R.spb;                 // 出力遅延ぶん 戻して判定(聞こえた拍で合う)
   const sec=section(); const kind=judge(b,sec.pat); poundAnim=1;
   if(kind==='smash'){ poundKind='smash'; smash++; combo=0; nori=Math.max(0,nori-0.4); handHurt=1; anger=Math.min(1,anger+0.25);
     Y.sfx.bad(); Y.say(["いたっ","あいたっ","ちょっ"][smash%3],{char:'niisan',interrupt:true,pitch:1.4});
@@ -165,7 +182,7 @@ function draw(){
   drawLanterns(b, pulse);
 
   if(state===S.PLAY||state===S.OVER){
-    const hin=state===S.PLAY?handIn(ph,section().pat):0;
+    const hin=state===S.PLAY?handIn(b,section().pat):0;
     drawUsu();
     drawMochi(b, ph, pulse);
     D.creature(ctx,P.buyo,{x:W*0.22,y:usuY()+6,scale:1,rot:-0.05,mouthOpen:0.3+poundAnim*0.6,brow:0.5},D.buyoBody);
@@ -276,6 +293,9 @@ window.__mochi={
   playHidden(){ state=S.PLAY; }, draw(){ draw(); return true; },
   noteOk(){ return Object.keys(NOTE).every(k=> k==='0' || NOTE[k]>0); },
   melodyValid(){ return SONGS.every(s=> s.mel.every(x=>x===0||NOTE[x]) && s.bass.every(x=>x===0||NOTE[x])); },
+  patternsValid(){ return SONGS.every(s=> s.sections.every(sec=> /^[PH.]+$/.test(sec.pat))); },
+  // 譜面: P=つく, H=手(打つな) の位置で判定/手が一致するか
+  slotAt(pat,k){ return slotType(pat,k); },
   snap(){ return {state,curSong,secIdx,combo,bestCombo,nori:+nori.toFixed(2),smash}; },
 };
 })();
