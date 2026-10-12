@@ -64,6 +64,20 @@
 
   #foot{ position:relative; z-index:1; text-align:center; margin-top:30px;
     font-size:12px; font-weight:700; color:#6b6398; }
+  /* スマホで あそぶ(PCで開いた時だけ出す) */
+  #phoneBtn{ position:relative; z-index:1; display:block; margin:22px auto 0; background:#ffe14d; color:#1a1210; font-weight:900; font-size:16px;
+    border:4px solid #000; border-radius:999px; padding:10px 22px; box-shadow:4px 5px 0 #000; cursor:pointer; font-family:inherit; }
+  #phoneBtn:active{ transform:translate(3px,4px); box-shadow:1px 1px 0 #000; }
+  #phone{ position:fixed; inset:0; z-index:20; background:rgba(14,10,30,.92); display:none; align-items:center; justify-content:center; padding:16px; }
+  #phone.show{ display:flex; }
+  #phone .box{ background:#2a2346; border:4px solid #000; border-radius:20px; box-shadow:6px 7px 0 #000; padding:20px; max-width:520px; color:#fff;
+    display:flex; gap:18px; flex-wrap:wrap; align-items:center; justify-content:center; text-align:left; }
+  #qr{ background:#fff; padding:10px; border-radius:10px; min-width:180px; min-height:180px; display:flex; align-items:center; justify-content:center; color:#555; font-size:13px; }
+  #phone .txt{ font-size:14px; line-height:1.8; max-width:280px; }
+  #phone .txt b{ color:#ffe14d; }
+  #phone code{ display:inline-block; background:#fff; color:#1a1210; border-radius:6px; padding:3px 8px; margin:3px 0; font-size:12px; user-select:text; -webkit-user-select:text; }
+  #phone small{ display:block; color:#c8c2e6; font-size:12px; margin-top:6px; }
+  #phoneClose{ margin-top:10px; background:#fff; border:3px solid #000; border-radius:999px; padding:6px 18px; font-weight:900; cursor:pointer; font-family:inherit; }
 </style>
 </head>
 <body>
@@ -76,7 +90,14 @@
 
   <div id="grid"></div>
 
+  <button id="phoneBtn">スマホで あそぶ</button>
   <div id="foot">タップして あそぶ ・ どんどん ふえる よてい</div>
+  <div id="phone"><div class="box">
+    <div id="qr">よみこみ中…</div>
+    <div class="txt"><b>スマホのカメラで QRを読む</b>か、このアドレスを開いてね<br><span id="phoneUrls"></span>
+      <small>スマホと このPCを 同じWi-Fiに つなぐ ・ PCで「ヘンゲー横丁をあそぶ.bat」を起動したままにする</small>
+      <button id="phoneClose">とじる</button></div>
+  </div></div>
   <div id="toast"></div>
 
 <script>
@@ -115,6 +136,11 @@
       <circle cx="38" cy="40" r="6" fill="#d64b3a"/>
       <rect x="16" y="50" width="30" height="7" rx="3.5" fill="#a9793f"/></g>
       <circle cx="36" cy="39" r="1.6" fill="${G}"/><circle cx="40" cy="39" r="1.6" fill="${G}"/></svg>`,
+    petaken:`<svg width="60" height="58" viewBox="0 0 64 64"><g stroke="${G}" stroke-width="3.5" stroke-linejoin="round">
+      <rect x="6" y="10" width="24" height="26" rx="3" fill="#fff" transform="rotate(-8 18 23)"/><rect x="10" y="14" width="16" height="18" fill="#ff8fb0" transform="rotate(-8 18 23)"/>
+      <rect x="34" y="10" width="24" height="26" rx="3" fill="#fff" transform="rotate(8 46 23)"/><rect x="38" y="14" width="16" height="18" fill="#8fd0ff" transform="rotate(8 46 23)"/>
+      <path d="M14 36 v14 M22 36 v14 M42 36 v14 M50 36 v14" fill="none"/>
+      <circle cx="30" cy="30" r="6" fill="#e8443a"/><circle cx="36" cy="34" r="6" fill="#3a7be8"/></g></svg>`,
     soon:`<svg width="54" height="54" viewBox="0 0 64 64"><text x="32" y="47" font-size="42" font-weight="900" text-anchor="middle" fill="#b7b0d8" stroke="${G}" stroke-width="2" paint-order="stroke" font-family="sans-serif">？</text></svg>`,
   };
   const GAMES = [
@@ -123,7 +149,8 @@
     { href:"dokete.html",  icon:ICON.dokete,  name:"すみません", tag:"人混み かき分け・レベル制", color:"#8fd0e8", ready:true,  badge:"" },
     { href:"nigekiru.html",icon:ICON.nigekiru,name:"にげきる", tag:"なぞって にげる・ぶつけて消す", color:"#b8a6ff", ready:true,  badge:"" },
     { href:"katobashi.html",icon:ICON.katobashi,name:"かっとばし", tag:"打ち返して くずす・落とすな", color:"#7fd0ff", ready:true,  badge:"NEW" },
-    { href:"",             icon:ICON.soon,    name:"じゅんびちゅう", tag:"筋トレ・かくとう…ふえる", color:"", ready:false, badge:"" },
+    { href:"kakutou.html", icon:ICON.petaken, name:"ペタ拳", tag:"すきな画像で なぐりあい", color:"#ff9fb8", ready:true,  badge:"NEW" },
+    { href:"",             icon:ICON.soon,    name:"じゅんびちゅう", tag:"筋トレ…ふえる", color:"", ready:false, badge:"" },
   ];
 
   // 背景のふわふわ(手描きの雑な形。絵文字は使わない)
@@ -164,6 +191,30 @@
     });
     grid.appendChild(c);
   });
+
+  // ---- スマホで あそぶ: このPCのアドレスを serve.py に聞いて、QRを出す ----
+  const touch = ("ontouchstart" in window) || navigator.maxTouchPoints>0;
+  const phoneBtn=document.getElementById("phoneBtn"), phone=document.getElementById("phone");
+  if(touch) phoneBtn.style.display="none";
+  let qrLib=null;
+  const loadQR=()=> qrLib || (qrLib=new Promise((res,rej)=>{ const s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"; s.onload=()=>res(window.QRCode); s.onerror=rej; document.head.appendChild(s); }));
+  phoneBtn.onclick=async()=>{
+    phone.classList.add("show");
+    const box=document.getElementById("qr"), urls=document.getElementById("phoneUrls"); box.textContent="よみこみ中…";
+    const path=location.pathname.replace(/[^/]*$/,"")+"index.html";
+    let list=[];
+    try{ const j=await (await fetch("/__lan",{cache:"no-store"})).json();
+      const rank=(ip)=>/^(192\.168|10\.|172\.(1[6-9]|2\d|3[01]))/.test(ip)?0:(/^100\./.test(ip)?2:1);
+      list=j.ips.sort((a,b)=>rank(a)-rank(b)).map(ip=>"http://"+ip+":"+j.port+path); }catch(e){}
+    // 公開サイト(GitHub Pages 等)で開いている時は、そのアドレスをそのまま出す
+    if(!list.length && /^https?:$/.test(location.protocol) && !/^(localhost|127\.)/.test(location.hostname)) list=[location.origin+path];
+    if(!list.length){ box.textContent="アドレスを 調べられませんでした"; urls.textContent="「ヘンゲー横丁をあそぶ.bat」で起動してから もう一度"; return; }
+    urls.innerHTML=list.map(()=>"<code></code>").join("<br>"); [...urls.querySelectorAll("code")].forEach((c,i)=>c.textContent=list[i]);
+    try{ const QR=await loadQR(); box.innerHTML=""; new QR(box,{text:list[0],width:180,height:180,correctLevel:QR.CorrectLevel.M}); }
+    catch(e){ box.textContent="QRを出せませんでした。アドレスを手で入れてね"; }
+  };
+  document.getElementById("phoneClose").onclick=()=>phone.classList.remove("show");
 
   let toastT=null;
   const toastEl=document.getElementById("toast");

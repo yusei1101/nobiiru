@@ -1,0 +1,22 @@
+{
+ "speaker": "青山龍星",
+ "style": "ノーマル",
+ "speakerId": 13,
+ "credit": "VOICEVOX:青山龍星",
+ "files": {
+  "title": "title.wav",
+  "vs": "vs.wav",
+  "round1": "round1.wav",
+  "round2": "round2.wav",
+  "round3": "round3.wav",
+  "round4": "round4.wav",
+  "round5": "round5.wav",
+  "final": "final.wav",
+  "fight": "fight.wav",
+  "ko": "ko.wav",
+  "timeup": "timeup.wav",
+  "perfect": "perfect.wav",
+  "draw": "draw.wav",
+  "win": "win.wav"
+ }
+}

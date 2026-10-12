@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ペタ拳 テスト</title>
+<style>
+  body{ background:#140a1e; color:#efe9ff; font:15px/1.6 "DotGothic16","MS Gothic",monospace; padding:20px; }
+  h1{ color:#ffe234; font-size:22px; } #sum{ font-size:18px; margin:10px 0 16px; }
+  .ok{ color:#7cff6a; } .ng{ color:#ff6a5a; } li{ margin:2px 0; } .err{ color:#ffb02e; margin-left:2em; display:block; }
+  small{ color:#8a83a8; }
+</style>
+</head>
+<body>
+<h1>ペタ拳 テスト（攻撃判定・体力・コンボ・投げ・CPU・勝敗）</h1>
+<div id="sum">実行中…</div>
+<ul id="list"></ul>
+<script src="../pixel.js"></script>
+<script src="../voice.js"></script>
+<script src="../cutout.js"></script>
+<script src="../chars.js"></script>
+<script src="../fighter.js"></script>
+<script src="../input.js"></script>
+<script src="../ai.js"></script>
+<script src="../battle.js"></script>
+<script src="specs.js"></script>
+<script>
+  setTimeout(()=>{
+    const ul=document.getElementById("list");
+    const r=KK_TESTS.run(res=>{ const li=document.createElement("li");
+      li.innerHTML=`<span class="${res.ok?"ok":"ng"}">${res.ok?"OK":"NG"}</span> ${res.name} <small>(${res.ms}ms)</small>`+(res.ok?"":`<span class="err">→ ${res.err}</span>`);
+      ul.appendChild(li); });
+    const s=document.getElementById("sum"); s.className=r.fail?"ng":"ok"; s.textContent=`${r.pass} / ${r.total} passed`+(r.fail?`（${r.fail} 件 失敗）`:"");
+    window.__testResult=r;
+  },50);
+</script>
+</body>
+</html>

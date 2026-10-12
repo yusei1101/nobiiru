@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ペタ拳">
+<meta name="theme-color" content="#140a1e">
+<title>ペタ拳</title>
+<!-- ドットフォント(読めなくても代わりのフォントで動く) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="yokocho.css">
+<style>
+  /* =====================================================================
+     ペタ拳: 90年代アーケードの世界観。角丸なし・ドットの段差フチ・走査線・ドットフォント。
+     ===================================================================== */
+  :root{
+    --ink:#120a10; --night:#140a1e; --panel:#241c3a; --panel2:#2f2550;
+    --yel:#ffe234; --red:#d81f26; --blue:#1e4fb8; --cream:#f6f1e2; --pink:#ff4fa3; --cyan:#5fe0ff;
+    --jp:'DotGothic16','MS Gothic',monospace; --en:'Press Start 2P','DotGothic16',monospace;
+    --bevel: inset -4px -4px 0 rgba(0,0,0,.35), inset 4px 4px 0 rgba(255,255,255,.28);
+  }
+  html,body{ background:var(--night); }
+  /* スマホのダブルタップ拡大を止める(iOSは viewport の拡大禁止を無視するので touch-action で止める) */
+  html{ touch-action:manipulation; -webkit-text-size-adjust:100%; }
+  button, .chip, .tile, .ccard, .mi, .pbtn, .dice, .slot, a, label, #drop{ touch-action:manipulation; }
+  .page, #select{ touch-action:pan-y; }
+  body{ font-family:var(--jp); }
+  #wrap{ background:var(--night); }
+  /* 走査線＋ふちの暗がり(ブラウン管) */
+  #crt{ position:fixed; inset:0; pointer-events:none; z-index:50;
+    background: repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,.16) 2px 3px),
+                radial-gradient(ellipse at center, rgba(0,0,0,0) 60%, rgba(0,0,0,.45) 100%); }
+  .screen{ font-family:var(--jp); }
+  .hidden{ display:none !important; }
+  .blink{ animation:blink 1s steps(2,start) infinite; }
+  @keyframes blink{ to{ visibility:hidden; } }
+
+  /* ---- ドットのボタン ---- */
+  .pbtn{ position:relative; font-family:var(--jp); font-size:20px; color:var(--ink); background:var(--yel); border:0; cursor:pointer;
+    padding:12px 26px 10px; box-shadow: var(--bevel), 0 0 0 4px var(--ink), 6px 6px 0 4px rgba(0,0,0,.5); letter-spacing:1px; }
+  .pbtn.en{ font-family:var(--en); font-size:16px; padding:14px 24px 12px; }
+  .pbtn.ghost{ background:var(--cream); }
+  .pbtn.red{ background:var(--red); color:#fff; text-shadow:2px 2px 0 var(--ink); }
+  .pbtn:active{ transform:translate(4px,4px); box-shadow: var(--bevel), 0 0 0 4px var(--ink); }
+  .pbtn:disabled{ filter:grayscale(1) brightness(.6); pointer-events:none; }
+  .pbtn.focus::before,.mi.focus::before{ content:"▶"; position:absolute; left:-30px; top:50%; transform:translateY(-50%); color:var(--yel);
+    font-family:var(--en); font-size:16px; text-shadow:3px 3px 0 var(--ink); animation:blink .6s steps(2,start) infinite; }
+  .chips{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  .chip{ font-family:var(--jp); font-size:15px; background:var(--panel2); color:#d9d2f0; border:0; padding:6px 12px 5px; cursor:pointer;
+    box-shadow: var(--bevel), 0 0 0 3px var(--ink); }
+  .chip.on{ background:var(--yel); color:var(--ink); }
+  .back{ font-family:var(--jp); border-radius:0; border:0; box-shadow:0 0 0 3px var(--ink), var(--bevel); background:var(--panel2); color:var(--yel); z-index:20; }
+
+  /* ---- ページ共通(管理・編集) ---- */
+  .page{ justify-content:flex-start; overflow-y:auto; touch-action:pan-y; padding: max(64px,env(safe-area-inset-top)) 16px 30px; gap:16px;
+    background: repeating-linear-gradient(135deg, #1a1030 0 16px, #170e2a 16px 32px); }
+  .page canvas{ position:static; inset:auto; width:auto; height:auto; }
+  .hdr{ font-family:var(--en); font-size:clamp(16px,3.4vw,26px); color:var(--yel); text-shadow:4px 4px 0 var(--red), 8px 8px 0 var(--ink); letter-spacing:2px; }
+  .sub2{ font-size:16px; color:#c8c2e6; }
+  .row{ display:flex; gap:22px; flex-wrap:wrap; justify-content:center; align-items:center; }
+
+  /* ================= タイトル ================= */
+  #title{ padding:0; justify-content:center; overflow:hidden; gap:0; }
+  #attract{ position:absolute; inset:0; overflow:hidden; }
+  #attract canvas{ position:absolute; inset:auto; }
+  #title .tshade{ position:absolute; inset:0; background:linear-gradient(to bottom, rgba(20,10,30,.55), rgba(20,10,30,.2) 40%, rgba(20,10,30,.82)); }
+  .logo{ position:relative; text-align:center; margin-top:-4vh; }
+  .logo-sub{ font-family:var(--en); font-size:clamp(10px,1.8vw,15px); color:var(--cyan); letter-spacing:4px; text-shadow:3px 3px 0 var(--ink); }
+  .logo-main{ font-family:var(--jp); font-weight:400; font-size:clamp(84px,19vw,200px); line-height:1; margin:6px 0 2px;
+    color:var(--yel); transform:rotate(-4deg); animation:logoIn .7s steps(7) both, wob 3s steps(6) .7s infinite;
+    text-shadow: 0 6px 0 #ff9a1f, 0 12px 0 var(--red), 6px 18px 0 var(--ink), -4px -4px 0 var(--ink), 4px -4px 0 var(--ink), -4px 4px 0 var(--ink), 4px 4px 0 var(--ink), 10px 26px 0 rgba(0,0,0,.45); }
+  @keyframes logoIn{ from{ transform:scale(4) rotate(-20deg); opacity:0; } to{ transform:scale(1) rotate(-4deg); opacity:1; } }
+  @keyframes wob{ 0%,100%{ transform:rotate(-4deg) } 50%{ transform:rotate(-2deg) translateY(-6px) } }
+  .logo-en{ font-family:var(--en); font-size:clamp(14px,3vw,26px); color:#fff; letter-spacing:6px; text-shadow:4px 4px 0 var(--red), 7px 7px 0 var(--ink); }
+  .menu{ position:relative; display:flex; flex-direction:column; gap:12px; align-items:stretch; margin-top:3vh; min-width:260px; }
+  .mi{ position:relative; font-family:var(--jp); font-size:22px; color:#fff; background:rgba(20,10,30,.75); border:0; cursor:pointer; padding:9px 18px 7px;
+    box-shadow:0 0 0 4px var(--ink), inset 0 0 0 2px rgba(255,255,255,.15); text-shadow:3px 3px 0 var(--ink); }
+  .mi.focus{ background:var(--red); color:var(--yel); }
+  .press{ position:relative; margin-top:3vh; font-family:var(--en); font-size:clamp(12px,2.2vw,18px); color:var(--yel); text-shadow:3px 3px 0 var(--ink); }
+  .credit{ position:absolute; bottom:max(10px,env(safe-area-inset-bottom)); left:0; right:0; text-align:center; font-family:var(--en); font-size:10px; color:#9d95c4; text-shadow:2px 2px 0 var(--ink); }
+  #help, #phone{ z-index:12; background:rgba(14,7,22,.94); }
+  .phoneBox{ display:flex; gap:22px; align-items:center; flex-wrap:wrap; justify-content:center; max-width:720px; }
+  #qr{ background:#fff; padding:10px; box-shadow:0 0 0 4px var(--ink); min-width:180px; min-height:180px; display:flex; align-items:center; justify-content:center; color:#555; font-size:13px; }
+  #qr img, #qr canvas{ image-rendering:pixelated; }
+  .phoneTxt{ font-size:15px; line-height:1.8; max-width:400px; }
+  .phoneTxt b{ color:var(--yel); font-weight:400; }
+  .phoneTxt small{ display:block; font-size:12px; color:#c8c2e6; margin-top:8px; line-height:1.7; }
+  #phoneUrls{ margin:8px 0; } #phoneUrls code{ display:inline-block; background:var(--cream); color:var(--ink); padding:4px 8px; margin:3px 0; font-family:var(--en); font-size:11px; user-select:text; -webkit-user-select:text; }
+  .panel{ background:var(--panel); box-shadow:0 0 0 4px var(--ink), var(--bevel), 8px 8px 0 4px rgba(0,0,0,.5); padding:18px 22px; color:#efe9ff; text-align:left; }
+  .keys{ font-size:16px; line-height:2.0; max-width:660px; }
+  .keys kbd{ display:inline-block; min-width:22px; text-align:center; background:var(--cream); color:var(--ink); font-family:var(--en); font-size:10px;
+    padding:4px 5px 3px; margin:0 2px; box-shadow:0 0 0 2px var(--ink), inset -2px -2px 0 rgba(0,0,0,.3); }
+  .keys b{ color:var(--yel); font-weight:400; }
+
+  /* ================= キャラ選択 ================= */
+  #select{ padding:max(12px,env(safe-area-inset-top)) 14px 14px; gap:12px; justify-content:space-between;
+    background: radial-gradient(ellipse at 50% 40%, #3a1e52, #140a1e 75%); overflow-y:auto; touch-action:pan-y; }
+  .sbar{ width:100%; max-width:1100px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .sbar.top{ padding-left:150px; }
+  .stitle{ font-family:var(--en); font-size:clamp(14px,2.6vw,24px); color:var(--yel); text-shadow:4px 4px 0 var(--red), 7px 7px 0 var(--ink); }
+  #selHint{ font-size:18px; color:#fff; text-shadow:3px 3px 0 var(--ink); }
+  .smain{ width:100%; max-width:1100px; display:grid; grid-template-columns:minmax(150px,1fr) minmax(260px,2.2fr) minmax(150px,1fr); gap:20px; align-items:stretch; flex:1; min-height:0; }
+  .big{ position:relative; box-shadow:0 0 0 4px var(--ink), var(--bevel); display:flex; flex-direction:column; align-items:center; justify-content:flex-end; padding:10px 8px 12px; min-height:280px; overflow:hidden; }
+  .big.p1{ background:linear-gradient(to bottom, #5a141c, #1a0a12); } .big.p2{ background:linear-gradient(to bottom, #142a5a, #0a0f1e); }
+  .big .tag{ position:absolute; top:8px; left:8px; font-family:var(--en); font-size:14px; color:#fff; padding:6px 8px 4px; box-shadow:0 0 0 3px var(--ink); z-index:2; }
+  .big.p1 .tag{ background:var(--red); } .big.p2 .tag{ background:var(--blue); }
+  .big .pic{ flex:1; width:100%; display:flex; align-items:flex-end; justify-content:center; min-height:120px; }
+  .big .pic img{ max-width:92%; max-height:240px; object-fit:contain; filter:drop-shadow(6px 6px 0 rgba(0,0,0,.55)); }
+  .big.preview .pic img{ opacity:.6; }
+  .big .q{ font-family:var(--en); font-size:60px; color:rgba(255,255,255,.18); margin-bottom:30px; }
+  .big .bnm{ font-size:24px; color:#fff; text-shadow:3px 3px 0 var(--ink); margin-top:6px; text-align:center; word-break:break-all; }
+  .big .bty{ font-size:15px; color:var(--yel); text-shadow:2px 2px 0 var(--ink); }
+  .big .ok{ position:absolute; top:42%; left:50%; transform:translate(-50%,-50%) rotate(-10deg); font-family:var(--en); font-size:28px; color:var(--yel);
+    text-shadow:4px 4px 0 var(--red), 7px 7px 0 var(--ink); animation:okIn .3s steps(4) both; z-index:2; }
+  @keyframes okIn{ from{ transform:translate(-50%,-50%) scale(3) rotate(-10deg); } }
+  .bars{ width:100%; max-width:210px; margin-top:6px; }
+  .bar{ display:flex; align-items:center; gap:6px; font-family:var(--en); font-size:9px; color:#c8c2e6; margin:5px 0; }
+  .bar span{ width:34px; }
+  .bar i{ flex:1; height:12px; background:#120a10; box-shadow:0 0 0 2px var(--ink); display:flex; gap:2px; padding:2px; }
+  .bar i b{ flex:1; background:#3a3350; } .bar i b.on{ background:var(--yel); }
+  .tiles{ display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:16px; align-content:start; padding:16px; background:rgba(0,0,0,.35); box-shadow:0 0 0 4px var(--ink); overflow-y:auto; }
+  .tile{ position:relative; aspect-ratio:1; background:#3b2f5c; box-shadow:0 0 0 3px var(--ink), var(--bevel); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .tile img{ max-width:86%; max-height:78%; object-fit:contain; pointer-events:none; margin-bottom:10%; }
+  .tile .tn{ position:absolute; left:0; right:0; bottom:0; background:rgba(18,10,16,.85); color:#fff; font-size:12px; text-align:center; padding:2px 2px 1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tile.special{ background:#5a3d8a; color:var(--yel); font-family:var(--en); font-size:26px; text-shadow:3px 3px 0 var(--ink); }
+  .tile.add{ background:#2e6b3a; }
+  .tile.cur0::after,.tile.cur1::after{ content:""; position:absolute; inset:-9px; border:5px solid; pointer-events:none; animation:blink .5s steps(2,start) infinite; }
+  .tile.cur0::after{ border-color:#ff4a3d; } .tile.cur1::after{ border-color:var(--cyan); }
+  .tile .lbl{ position:absolute; top:-15px; font-family:var(--en); font-size:10px; color:#fff; padding:3px 4px 2px; box-shadow:0 0 0 2px var(--ink); z-index:2; }
+  .tile .lbl.l0{ left:-6px; background:var(--red); } .tile .lbl.l1{ right:-6px; background:var(--blue); }
+  .opts{ display:flex; gap:18px; flex-wrap:wrap; align-items:center; }
+  .opt{ display:flex; gap:8px; align-items:center; }
+  .opt > span{ font-family:var(--en); font-size:10px; color:#c8c2e6; }
+
+  /* ================= 管理・編集 ================= */
+  .cgrid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:20px; width:100%; max-width:900px; }
+  .ccard{ position:relative; background:var(--panel); color:#fff; box-shadow:0 0 0 4px var(--ink), var(--bevel); padding:8px 8px 10px; display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .ccard .th{ width:100%; aspect-ratio:1; display:flex; align-items:center; justify-content:center; background:#3b2f5c; box-shadow:inset 0 0 0 3px rgba(0,0,0,.35); }
+  .ccard .th img{ max-width:90%; max-height:90%; object-fit:contain; }
+  .ccard .nm{ font-size:17px; text-shadow:2px 2px 0 var(--ink); word-break:break-all; text-align:center; }
+  .ccard .ty{ font-size:12px; color:var(--yel); }
+  .ccard .tag2{ position:absolute; top:-10px; left:-6px; background:#2e6b3a; color:#fff; font-family:var(--en); font-size:9px; padding:4px 5px 3px; box-shadow:0 0 0 2px var(--ink); }
+  .ccard.add{ background:#2e6b3a; cursor:pointer; justify-content:center; min-height:180px; }
+  .ccard.add .plus{ font-family:var(--en); font-size:40px; color:var(--yel); text-shadow:4px 4px 0 var(--ink); }
+  .ccard .acts{ display:flex; gap:8px; margin-top:4px; }
+  .ccard .acts button{ font-family:var(--jp); font-size:14px; border:0; padding:5px 10px 4px; cursor:pointer; background:var(--cream); box-shadow:0 0 0 3px var(--ink), var(--bevel); }
+  .ccard .acts .del{ background:#ff9a9a; } .ccard .acts .del.sure{ background:var(--red); color:#fff; }
+  .ed{ display:flex; gap:26px; flex-wrap:wrap; justify-content:center; align-items:flex-start; width:100%; max-width:960px; }
+  .edcol{ display:flex; flex-direction:column; gap:10px; align-items:center; flex:1 1 330px; max-width:450px; }
+  #drop{ position:relative; width:100%; aspect-ratio:1; display:flex; align-items:center; justify-content:center; overflow:hidden; cursor:pointer;
+    background:repeating-conic-gradient(#cfc7b2 0 25%, #f6f1e2 0 50%) 0 0/24px 24px; box-shadow:0 0 0 4px var(--ink), 0 0 0 8px #5a4f7a; }
+  #drop.drag{ box-shadow:0 0 0 4px var(--ink), 0 0 0 8px var(--yel); }
+  #drop.has{ cursor:crosshair; }
+  #edCv{ max-width:100%; max-height:100%; touch-action:none; }
+  #dropMsg{ position:absolute; color:var(--ink); font-size:17px; line-height:1.9; padding:20px; text-align:center; }
+  #dropMsg b{ font-size:22px; font-weight:400; }
+  .note{ font-size:14px; color:#efe9d8; min-height:18px; text-align:center; }
+  .note.warn{ color:#ffb02e; }
+  .slider{ display:flex; gap:10px; align-items:center; font-size:14px; color:#c8c2e6; }
+  .slider input{ width:170px; accent-color:var(--yel); }
+  .lbl2{ font-family:var(--en); font-size:10px; color:#c8c2e6; letter-spacing:1px; }
+  #pvCv{ width:270px !important; height:270px !important; box-shadow:0 0 0 4px var(--ink), var(--bevel); }
+  .field{ display:flex; gap:8px; align-items:center; width:100%; justify-content:center; flex-wrap:wrap; }
+  .field > label{ font-size:15px; color:#c8c2e6; min-width:80px; text-align:right; }
+  .field input[type=text]{ flex:1; min-width:120px; max-width:230px; font-family:var(--jp); font-size:19px; padding:8px 10px 6px; border:0; background:var(--cream); color:var(--ink);
+    box-shadow:0 0 0 3px var(--ink), inset 3px 3px 0 rgba(0,0,0,.18); user-select:text; -webkit-user-select:text; }
+  .dice{ font-family:var(--jp); font-size:13px; border:0; background:#b8a6ff; padding:6px 8px 5px; cursor:pointer; box-shadow:0 0 0 3px var(--ink), var(--bevel); }
+  .stats{ width:100%; max-width:340px; background:rgba(0,0,0,.35); box-shadow:0 0 0 3px var(--ink); padding:10px 14px; }
+  #diag{ font-size:14px; color:var(--yel); text-align:center; margin-top:6px; }
+  .stHead{ display:flex; justify-content:space-between; font-size:15px; color:#fff; margin-bottom:6px; }
+  #ptLeft{ color:var(--yel); } #ptLeft.zero{ color:#7cff6a; }
+  .srow{ display:flex; align-items:center; gap:8px; margin:6px 0; }
+  .srow .sl{ width:74px; font-size:15px; color:#c8c2e6; text-align:right; }
+  .srow .sv{ width:20px; font-family:var(--en); font-size:12px; color:#fff; text-align:center; }
+  .srow i{ flex:1; height:16px; background:#120a10; box-shadow:0 0 0 2px var(--ink); display:flex; gap:2px; padding:2px; }
+  .srow i b{ flex:1; background:#3a3350; } .srow i b.on{ background:var(--yel); }
+  .srow button{ width:30px; height:28px; border:0; font-family:var(--en); font-size:14px; cursor:pointer; background:var(--cream); box-shadow:0 0 0 3px var(--ink), var(--bevel); }
+  .srow button:disabled{ filter:brightness(.45); cursor:default; }
+  .srow .ef{ width:74px; font-size:12px; color:#9d95c4; }
+  .stNote{ font-size:12px; color:#9d95c4; margin-top:4px; }
+  #vvSel{ font-family:var(--jp); font-size:15px; padding:6px 8px; background:var(--cream); color:var(--ink); border:0; box-shadow:0 0 0 3px var(--ink); max-width:230px; }
+  /* 対戦中の操作表示 */
+  #ctrlBtn{ position:absolute; bottom:max(6px,env(safe-area-inset-bottom)); left:calc(50% + 46px); z-index:7; background:var(--panel2); color:var(--yel);
+    border:0; font-family:var(--jp); font-size:13px; padding:6px 10px 5px; cursor:pointer; box-shadow:0 0 0 3px var(--ink), var(--bevel); }
+  #ctrlStrip{ position:absolute; left:50%; bottom:46px; transform:translateX(-50%); z-index:7; background:rgba(14,7,22,.86); color:#fff; font-size:15px;
+    padding:8px 14px 6px; box-shadow:0 0 0 3px var(--ink); white-space:nowrap; pointer-events:none; transition:opacity .5s; }
+  #ctrlStrip.fade{ opacity:0; }
+  #ctrlStrip kbd, .keys2 kbd{ display:inline-block; min-width:20px; text-align:center; background:var(--cream); color:var(--ink); font-family:var(--en); font-size:9px;
+    padding:3px 4px 2px; margin:0 2px; box-shadow:0 0 0 2px var(--ink); }
+  .keys2{ font-size:15px; line-height:2; margin-top:6px; text-align:left; }
+
+  /* ================= 対戦 ================= */
+  #battle{ position:absolute; inset:0; background:#000; z-index:3; }
+  #bcv{ position:absolute; inset:auto; }
+  #pauseBtn{ position:absolute; bottom:max(6px,env(safe-area-inset-bottom)); left:calc(50% - 40px); transform:translateX(-50%); z-index:7; background:var(--panel2); color:var(--yel);
+    border:0; font-family:var(--en); font-size:10px; padding:8px 10px 6px; cursor:pointer; box-shadow:0 0 0 3px var(--ink), var(--bevel); }
+  /* ---- スマホのパッド ---- */
+  #pad{ position:absolute; inset:0; z-index:6; pointer-events:none; touch-action:none; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+  #pad .stickZone{ position:absolute; left:0; top:22%; bottom:0; width:45%; pointer-events:auto; touch-action:none; }
+  #pad .stickBase{ position:absolute; width:120px; height:120px; margin:-60px 0 0 -60px; left:110px; bottom:auto; top:calc(100% - 110px); border-radius:50%;
+    background:rgba(246,241,226,.18); box-shadow:0 0 0 4px rgba(18,10,16,.7); pointer-events:none; opacity:.55; }
+  #pad .stickBase.on{ opacity:1; }
+  #pad .stickKnob{ position:absolute; left:30px; top:30px; width:60px; height:60px; border-radius:50%; background:rgba(255,226,52,.85); box-shadow:0 0 0 4px var(--ink), inset -4px -4px 0 rgba(0,0,0,.3); }
+  #pad .stickHelp{ position:absolute; left:16px; bottom:calc(220px); color:#fff; font-size:12px; line-height:1.5; text-shadow:2px 2px 0 var(--ink); opacity:.8; pointer-events:none; animation:helpFade 1s 6s forwards; }
+  @keyframes helpFade{ to{ opacity:0; } }
+  #pad .btns{ position:absolute; right:14px; bottom:14px; width:190px; height:170px; pointer-events:none; }
+  #pad .pb{ position:absolute; pointer-events:auto; width:78px; height:78px; border-radius:50%; color:var(--ink); font-family:var(--jp); font-size:20px;
+    display:flex; align-items:center; justify-content:center; touch-action:none; box-shadow:0 0 0 4px var(--ink), inset -5px -5px 0 rgba(0,0,0,.28), inset 4px 4px 0 rgba(255,255,255,.35); }
+  #pad .pb.on{ filter:brightness(1.35); transform:translate(3px,3px) scale(.95); }
+  #pad .a{ left:0; bottom:0; background:rgba(246,241,226,.82); }
+  #pad .b{ right:0; bottom:18px; background:rgba(255,140,80,.85); }
+  #pad .c{ right:8px; top:0; background:rgba(190,120,255,.85); font-size:17px; }
+  #pad .t{ left:14px; top:4px; background:rgba(110,220,150,.85); width:62px; height:62px; font-size:18px; }
+  #rotHint{ display:none; position:absolute; inset:0; z-index:30; background:rgba(14,7,22,.94); color:var(--yel); font-size:22px; text-shadow:3px 3px 0 var(--ink);
+    flex-direction:column; align-items:center; justify-content:center; gap:18px; }
+  #rotHint .phone{ width:46px; height:80px; border:5px solid var(--yel); border-radius:8px; animation:rot 1.6s steps(4) infinite; }
+  @keyframes rot{ 0%,30%{ transform:rotate(0) } 70%,100%{ transform:rotate(-90deg) } }
+  body.touch.portrait #battle:not(.hidden) #rotHint{ display:flex; }
+  /* よこ向きスマホ(高さが低い画面)向け */
+  @media (max-height:520px){
+    .logo-main{ font-size:clamp(56px,12vh,96px); margin:0; }
+    .logo-sub{ font-size:10px; } .logo-en{ font-size:14px; }
+    .menu{ margin-top:10px; gap:8px; min-width:220px; } .mi{ font-size:17px; padding:6px 14px 5px; }
+    .press{ display:none; } .credit{ display:none; }
+    #select{ gap:8px; } .smain{ gap:12px; } .big{ min-height:150px; } .big .pic img{ max-height:110px; } .big .bnm{ font-size:17px; }
+    .tiles{ grid-template-columns:repeat(auto-fill,minmax(70px,1fr)); gap:12px; padding:10px; }
+    .pbtn{ font-size:16px; padding:9px 18px 7px; } .stitle{ font-size:14px; } #selHint{ font-size:14px; }
+    #ctrlStrip{ display:none; }
+  }
+  #pause{ background:rgba(14,7,22,.85); z-index:9; }
+  #pause h2{ font-family:var(--en); font-size:36px; color:var(--yel); text-shadow:4px 4px 0 var(--red), 8px 8px 0 var(--ink); }
+  #result{ z-index:9; justify-content:flex-end; padding-bottom:max(30px,env(safe-area-inset-bottom)); background:transparent; pointer-events:none; }
+  #result .row{ pointer-events:auto; }
+  #toast{ position:fixed; left:50%; bottom:40px; transform:translateX(-50%) translateY(20px); background:var(--ink); color:var(--yel); font-family:var(--jp); font-size:17px;
+    padding:12px 22px 10px; max-width:90vw; text-align:center; box-shadow:0 0 0 3px var(--yel); z-index:60; opacity:0; transition:opacity .2s, transform .2s; pointer-events:none; }
+  #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  @media (max-width:760px){
+    .sbar.top{ padding-left:120px; }
+    .smain{ grid-template-columns:1fr 1fr; grid-template-rows:auto auto; }
+    .smain .tiles{ grid-column:1 / span 2; grid-row:2; }
+    #big0{ grid-row:1; grid-column:1; } #big1{ grid-row:1; grid-column:2; }
+    .big{ min-height:200px; } .big .pic img{ max-height:120px; }
+    .big .ok{ font-size:16px; }
+  }
+  /* よこ向きスマホ: キャラ選択は 3列(1P | キャラ一覧 | 2P) のまま小さく */
+  @media (max-height:520px) and (orientation:landscape){
+    #select{ padding:8px 10px 8px; gap:6px; }
+    .sbar.top{ padding-left:110px; }
+    .smain{ grid-template-columns:130px 1fr 130px; grid-template-rows:1fr; gap:10px; }
+    .smain .tiles{ grid-column:2; grid-row:1; align-content:start; }
+    #big0{ grid-column:1; grid-row:1; } #big1{ grid-column:3; grid-row:1; }
+    .big{ min-height:0; padding:6px 4px 6px; } .big .pic{ min-height:60px; } .big .pic img{ max-height:80px; }
+    .big .bnm{ font-size:14px; } .big .bty{ font-size:11px; } .big .ok{ font-size:14px; top:30%; }
+    .bars{ margin-top:2px; } .bar{ font-size:7px; margin:2px 0; } .bar span{ width:24px; } .bar i{ height:8px; }
+    .big .tag{ font-size:10px; padding:4px 5px 3px; }
+    .opts{ gap:8px; } .chip{ font-size:12px; padding:4px 8px 3px; } .opt > span{ font-size:8px; }
+    .sbar{ gap:8px; }
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <a class="back" id="backLink" href="index.html">← よこちょう</a>
+
+  <!-- タイトル(裏でCPU同士がデモ対戦) -->
+  <section id="title" class="screen">
+    <div id="attract"><canvas id="tcv"></canvas></div>
+    <div class="tshade"></div>
+    <div class="logo">
+      <div class="logo-sub">PHOTO STICKER FIGHTERS</div>
+      <h1 class="logo-main">ペタ拳</h1>
+      <div class="logo-en">PETA-KEN</div>
+    </div>
+    <div class="menu" id="titleMenu">
+      <button class="mi" data-act="fight">たたかう</button>
+      <button class="mi" data-act="manage">キャラを つくる</button>
+      <button class="mi" data-act="help">あそびかた</button>
+      <button class="mi" data-act="phone" id="phoneMi">スマホで あそぶ</button>
+      <button class="mi" data-act="sound" id="soundMi">おと：ON</button>
+      <button class="mi" data-act="voice" id="voiceMi">こえ：ペチャクチャ</button>
+    </div>
+    <div class="press blink">PRESS START</div>
+    <div class="credit" id="credit">YOKOCHO ARCADE ・ CREDIT 99</div>
+  </section>
+
+  <section id="help" class="screen hidden">
+    <div class="hdr">HOW TO PLAY</div>
+    <div class="panel keys">
+      <b>1人</b>：<kbd>A</kbd><kbd>D</kbd>/<kbd>←</kbd><kbd>→</kbd> いどう ・ <kbd>W</kbd>/<kbd>↑</kbd> ジャンプ ・ <kbd>S</kbd>/<kbd>↓</kbd> しゃがみ<br>
+      　　<kbd>J</kbd>/<kbd>Z</kbd> 弱 ・ <kbd>K</kbd>/<kbd>X</kbd> 強 ・ <kbd>L</kbd>/<kbd>C</kbd> 必殺（ちいさい自分を投げる） ・ <kbd>I</kbd>/<kbd>V</kbd> 投げ<br>
+      <b>ガード</b>：相手と<b>反対方向</b>を押す。立ち=上段・中段・空中技 ／ しゃがみ=上段・中段・下段<br>
+      <b>投げ</b>：近くで 弱＋強 同時押し。ガードしてる相手を崩せる。つかまれたら すぐ投げで「投げぬけ」<br>
+      <b>しゃがみ攻撃</b>：しゃがんで弱=下段 ／ しゃがんで強=足払い（ダウンをとる）<br>
+      <b>れんぞく技</b>：弱 → 弱 → 強 → 必殺 と つなげる（長いほど 威力と のけぞりが へる）<br>
+      <b>超ひっさつ</b>：ゲージMAXで しゃがみ＋必殺（巨大な自分が 空から落ちる）<br>
+      <b>2人</b>：1P <kbd>WASD</kbd>＋<kbd>F</kbd><kbd>G</kbd><kbd>H</kbd><kbd>T</kbd> ／ 2P <kbd>矢印</kbd>＋<kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> か <kbd>,</kbd><kbd>.</kbd><kbd>/</kbd><kbd>;</kbd><br>
+      ゲームパッドOK ・ スマホは画面ボタン ・ <kbd>ESC</kbd> ポーズ ・ メニューは <kbd>↑↓</kbd>＋<kbd>ENTER</kbd>
+    </div>
+    <button class="pbtn" id="helpClose">もどる</button>
+  </section>
+
+  <section id="phone" class="screen hidden">
+    <div class="hdr">PLAY ON PHONE</div>
+    <div class="panel phoneBox">
+      <div id="qr"></div>
+      <div class="phoneTxt">
+        <b>スマホのカメラで QRコードを読む</b>か、下のアドレスを開いてね。<br>
+        <div id="phoneUrls"></div>
+        <small>・スマホと このPCを <b>同じWi-Fi</b> につなぐ<br>
+        ・PCで「ヘンゲー横丁をあそぶ.bat」を起動したままにする<br>
+        ・はじめてだと PC に「ファイアウォールの許可」が出るので <b>許可</b> を押す<br>
+        ・キャラはスマホ側に保存される（PCのキャラとは別）</small>
+      </div>
+    </div>
+    <button class="pbtn" id="phoneClose">もどる</button>
+  </section>
+
+  <!-- キャラ選択 -->
+  <section id="select" class="screen hidden">
+    <div class="sbar top">
+      <div class="stitle">PLAYER SELECT</div>
+      <div id="selHint"></div>
+    </div>
+    <div class="smain">
+      <div class="big p1" id="big0"></div>
+      <div class="tiles" id="selGrid"></div>
+      <div class="big p2" id="big1"></div>
+    </div>
+    <div class="sbar">
+      <div class="opts">
+        <div class="opt"><span>MODE</span><div class="chips" id="modeChips"></div></div>
+        <div class="opt" id="diffRow"><span>LEVEL</span><div class="chips" id="diffChips"></div></div>
+        <div class="opt"><span>STAGE</span><div class="chips" id="stageChips"></div></div>
+      </div>
+      <div class="row" style="gap:18px">
+        <button class="pbtn ghost" id="selBack">もどる</button>
+        <button class="pbtn en red" id="fightBtn" disabled>FIGHT!</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- キャラ管理 -->
+  <section id="manage" class="screen page hidden">
+    <div class="hdr">CHARACTER</div>
+    <div class="sub2">画像を 登録すると、その子が 戦う。ブラウザを とじても のこる。</div>
+    <div class="cgrid" id="manGrid"></div>
+    <div class="row"><button class="pbtn ghost" id="manBack">もどる</button><button class="pbtn" id="manFight">たたかう</button></div>
+  </section>
+
+  <!-- キャラ編集 -->
+  <section id="editor" class="screen page hidden">
+    <div class="hdr" id="edTitle">NEW FIGHTER</div>
+    <div class="ed">
+      <div class="edcol">
+        <div id="drop">
+          <canvas id="edCv" class="hidden"></canvas>
+          <div id="dropMsg"><b>ここを タップして 画像を えらぶ</b><br>ドラッグ＆ドロップ ・ 貼り付け(Ctrl+V) もOK<br><small>人・動物・キャラ・ネタ画像 なんでも</small></div>
+        </div>
+        <input type="file" id="file" accept="image/*" hidden>
+        <div class="lbl2">BACKGROUND / はいけいの けしかた</div>
+        <div class="chips" id="cutChips"></div>
+        <label class="slider" id="tolRow">けす つよさ <input type="range" id="tol" min="8" max="110" value="40"></label>
+        <div class="lbl2">BRUSH / なぞって なおす</div>
+        <div class="chips" id="brushChips"></div>
+        <div class="chips" id="sizeChips"></div>
+        <div class="note" id="cutNote"></div>
+        <button class="chip" id="reFile">べつの画像に する</button>
+      </div>
+      <div class="edcol">
+        <canvas id="pvCv" width="540" height="540"></canvas>
+        <div class="field"><label>みせかた</label><div class="chips" id="dispChips"></div></div>
+        <div class="field" id="outfitRow"><label>ふく</label><div class="chips" id="outfitChips"></div></div>
+        <div class="field"><label>反転</label><div class="chips" id="flipChips"></div></div>
+        <div class="field" id="faceRow"><label>元の向き</label><div class="chips" id="faceChips"></div></div>
+        <div class="field"><label>なまえ</label><input type="text" id="edName" maxlength="12"><button class="dice" data-dice="name">おまかせ</button></div>
+        <div class="field"><label>タイプ</label><div class="chips" id="typeChips"></div></div>
+        <div class="stats">
+          <div class="stHead"><span>のうりょく</span><span id="ptLeft"></span></div>
+          <div id="statRows"></div>
+          <div class="stNote">合計 12 ポイントを 4つに配る（各 1〜5）。上げたら どこかを下げる。</div>
+          <div id="diag"></div>
+        </div>
+        <div class="field"><label>こえ</label><div class="chips" id="voiceChips"></div></div>
+        <div class="field" id="vvRow"><label>VOICEVOX</label><select id="vvSel"></select><button class="dice" id="vvTry">きく</button></div>
+        <div class="note" id="vvNote"></div>
+        <div class="field"><label>かけごえ</label><input type="text" id="edShout" maxlength="10"><button class="dice" data-dice="shout">おまかせ</button></div>
+        <div class="field"><label>必殺技の名前</label><input type="text" id="edSuper" maxlength="16"><button class="dice" data-dice="super">おまかせ</button></div>
+      </div>
+    </div>
+    <div class="row"><button class="pbtn ghost" id="edCancel">やめる</button><button class="pbtn" id="edSave">ほぞん</button></div>
+  </section>
+
+  <!-- 対戦 -->
+  <section id="battle" class="hidden">
+    <canvas id="bcv"></canvas>
+    <button id="pauseBtn">PAUSE</button>
+    <button id="ctrlBtn">そうさ</button>
+    <div id="ctrlStrip" class="hidden"></div>
+    <div id="pad" class="hidden">
+      <div class="stickZone" data-stick></div>
+      <div class="stickBase"><div class="stickKnob"></div></div>
+      <div class="stickHelp">ここを 指で ひっぱって いどう<br>相手と反対で ガード / 下で しゃがみ</div>
+      <div class="btns">
+        <div class="pb t" data-k="t">投</div><div class="pb c" data-k="c">必殺</div>
+        <div class="pb a" data-k="a">弱</div><div class="pb b" data-k="b">強</div>
+      </div>
+    </div>
+    <div id="rotHint"><div class="phone"></div>スマホを よこむきに してね</div>
+  </section>
+
+  <section id="pause" class="screen hidden">
+    <h2>PAUSE</h2>
+    <div class="panel keys2" id="pauseKeys"></div>
+    <div class="menu" id="pauseMenu">
+      <button class="mi" data-act="resume">つづける</button>
+      <button class="mi" data-act="restart">さいしょから</button>
+      <button class="mi" data-act="select">キャラえらびへ</button>
+    </div>
+  </section>
+
+  <section id="result" class="screen hidden">
+    <div class="row" id="resMenu">
+      <button class="pbtn" data-act="again">もういっかい</button>
+      <button class="pbtn ghost" data-act="select">キャラえらび</button>
+      <button class="pbtn ghost" data-act="title">タイトル</button>
+    </div>
+  </section>
+
+  <div id="toast"></div>
+  <div id="crt"></div>
+</div>
+
+<script src="yokocho.js"></script>
+<script src="kakutou/pixel.js"></script>
+<script src="kakutou/voice.js"></script>
+<script src="kakutou/vv.js"></script>
+<script src="kakutou/store.js"></script>
+<script src="kakutou/cutout.js"></script>
+<script src="kakutou/chars.js"></script>
+<script src="kakutou/fighter.js"></script>
+<script src="kakutou/input.js"></script>
+<script src="kakutou/ai.js"></script>
+<script src="kakutou/stage.js"></script>
+<script src="kakutou/battle.js"></script>
+<script src="kakutou/app.js"></script>
+</body>
+</html>
