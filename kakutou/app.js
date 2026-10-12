@@ -175,6 +175,8 @@ $("fightBtn").onclick=()=>startBattle();
 // ---------------- 操作表(対戦画面から見られる) ----------------
 const K=(t)=>t.split(" ").map(k=>"<kbd>"+k+"</kbd>").join("");
 function controlsHTML(){
+  if(isTouch) return `<b>左の指</b>：ひっぱって いどう／上で ジャンプ／下で しゃがみ<br><b>ガード</b>：相手と反対に ひっぱる（下＋反対=しゃがみガード）<br>`+
+    `<b>右の指</b>：弱・強・必殺・投げ（指を すべらせて押しかえ OK）<br><b>コンボ</b>：弱→弱→強→必殺 ／ <b>超ひっさつ</b>：ゲージMAXで 下＋必殺`;
   const common=`<b>ガード</b>：相手と<b>反対方向</b>を押す（立ち=上段・中段・空中技／${K("S")}も押して しゃがみ=上段・中段・下段）<br>`+
     `<b>投げ</b>：近くで 弱＋強 同時押し（ガードを崩せる）。つかまれたら すぐ投げで「投げぬけ」<br>`+
     `<b>しゃがみ攻撃</b>：しゃがんで弱=下段 ／ しゃがんで強=足払い（ダウン）<br>`+
@@ -208,12 +210,14 @@ document.body.classList.toggle("touch", isTouch);
   for(const ev of ["gesturestart","gesturechange"]) document.addEventListener(ev,e=>e.preventDefault(),{passive:false});
   document.addEventListener("touchmove",e=>{ if(e.touches && e.touches.length>1 && inGame(e.target)) e.preventDefault(); },{passive:false});
 })();
-// スマホ: たて向きの間は対戦を止めて「よこにしてね」
+// スマホは たて・よこ どちらでも遊べる。向きを変えたら 対戦画面の配置をその場で切り替える
 const portraitMQ = matchMedia("(orientation: portrait)");
+function portLayout(){ return isTouch && innerHeight>innerWidth; }
 function onOrient(){
-  const portrait = portraitMQ.matches;
-  document.body.classList.toggle("portrait", portrait);
-  if(isTouch && S.battle && S.screen==="battle"){ S.battle.setPaused(portrait); if(S.battle.resize) S.battle.resize(); }
+  document.body.classList.toggle("portrait", portraitMQ.matches);
+  const port=portLayout();
+  $("battle").classList.toggle("port", port);
+  if(S.battle && S.battle.setLayout) requestAnimationFrame(()=>{ if(S.battle) S.battle.setLayout(port); });
 }
 portraitMQ.addEventListener ? portraitMQ.addEventListener("change",onOrient) : portraitMQ.addListener(onOrient);
 addEventListener("resize",()=>{ if(S.battle && S.battle.resize && !S.battle.headless) S.battle.resize(); });
@@ -223,7 +227,7 @@ function goFullscreen(){
   if(!isTouch) return;
   const el=document.documentElement, rq=el.requestFullscreen||el.webkitRequestFullscreen;
   try{ const pr = rq && !document.fullscreenElement ? rq.call(el) : null;
-    Promise.resolve(pr).then(()=>{ try{ screen.orientation && screen.orientation.lock && screen.orientation.lock("landscape").catch(()=>{}); }catch(e){} }).catch(()=>{}); }catch(e){}
+    Promise.resolve(pr).catch(()=>{}); }catch(e){}
 }
 const resMenu=new Menu($("resMenu")), pauseMenu=new Menu($("pauseMenu"));
 async function startBattle(){
@@ -240,7 +244,8 @@ async function startBattle(){
   const stage = S.stage==="random" ? KK.stage.random() : S.stage;
   show("battle");
   $("pad").classList.toggle("hidden", !isTouch);
-  S.battle = new KK.Battle({ cv:$("bcv"), assets:[a1,a2], ctrls, stage, sound:S.sound, touch:isTouch, tags:["1P", S.mode==="cpu"?"CPU":"2P"],
+  $("battle").classList.toggle("port", portLayout());
+  S.battle = new KK.Battle({ cv:$("bcv"), assets:[a1,a2], ctrls, stage, sound:S.sound, touch:isTouch, portrait:portLayout(), tags:["1P", S.mode==="cpu"?"CPU":"2P"],
     onEnd:()=>setTimeout(()=>{ if(S.battle && S.screen==="battle"){ $("pad").classList.add("hidden"); $("ctrlStrip").classList.add("hidden"); show("result"); resMenu.set(0); } },1400) });
   S.battle.start();
   if(!isTouch) showStrip(11000);

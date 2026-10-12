@@ -28,9 +28,11 @@ window.KK = window.KK || {};
       this.banner=null; this.superCut=null; this.comboShow=null;
       this.stat=[0,1].map(()=>({dmg:0,maxCombo:0,score:0,perfect:0}));
       this._raf=null; this._acc=0; this._last=0;
+      this.port=false; this.TOP=0; this.BOT=0; this.VH=R.H;
       if(!this.headless){
         this.L={ bg:new P.Layer(R.W,R.H,3), actor:new P.Layer(R.W,R.H,3), fx:new P.Layer(R.W,R.H,3), hud:new P.Layer(R.W,R.H,2) };
-        this.resize=this.resize.bind(this); addEventListener("resize",this.resize); this.resize();
+        this.resize=this.resize.bind(this); addEventListener("resize",this.resize);
+        this.setLayout(!!opt.portrait);
       }
       if(opt.attract){ this.nextRound(); } else { this.phase="vs"; this.phaseT=0; this.sfx("vs"); setTimeout(()=>this.say("バトル スタート","narr","vs"),500); }
     }
@@ -39,9 +41,17 @@ window.KK = window.KK || {};
     setPaused(p){ this.paused=p; this._last=performance.now(); }
     skip(){ if(this.phase==="vs" && this.phaseT<130) this.phaseT=130; }
 
+    /* 縦持ち(portrait)では、試合の上に「体力・タイム」の帯、下に「ゲージ」の帯をつける。
+       試合そのもの(960x540)は同じ。帯のぶん描く範囲が縦に長くなる(VH)。 */
+    setLayout(port){
+      this.port=!!port; this.TOP=this.port?150:0; this.BOT=this.port?96:0; this.VH=R.H+this.TOP+this.BOT;
+      if(this.L) this.L.hud=new P.Layer(R.W,this.VH,2);
+      this._hudSig=null; this.resize();
+    }
     resize(){
       const box=this.cv.parentElement.getBoundingClientRect(), dpr=Math.min(devicePixelRatio||1, this.lowQ?1.25:(navigator.maxTouchPoints>0?1.6:2));
-      const s=(this.o.cover?Math.max:Math.min)(box.width/R.W, box.height/R.H), w=R.W*s, h=R.H*s;
+      const VH=this.VH||R.H;
+      const s=(this.o.cover?Math.max:Math.min)(box.width/R.W, box.height/VH), w=R.W*s, h=VH*s;
       this.cv.style.width=w+"px"; this.cv.style.height=h+"px";
       this.cv.style.left=(box.width-w)/2+"px"; this.cv.style.top=(box.height-h)/2+"px";
       this.cv.width=Math.round(w*dpr); this.cv.height=Math.round(h*dpr);
@@ -360,8 +370,18 @@ window.KK = window.KK || {};
     // ================= 描画 =================
     render(){
       const c=this.ctx; c.setTransform(this.scale,0,0,this.scale,0,0); c.imageSmoothingEnabled=true;
-      if(this.phase==="vs"){ this.renderVs(c); return; }
-      if(this.phase==="result" && !this.o.attract){ this.renderResult(c); return; }
+      if(this.port){ c.fillStyle="#120a1c"; c.fillRect(0,0,R.W,this.VH); }
+      c.save(); if(this.port){ c.translate(0,this.TOP); c.beginPath(); c.rect(0,0,R.W,R.H); c.clip(); }
+      const full = this.phase==="vs" || (this.phase==="result" && !this.o.attract);
+      if(this.phase==="vs") this.renderVs(c);
+      else if(full) this.renderResult(c);
+      else this.renderWorld(c);
+      c.restore();
+      if(full){ if(this.port) this.drawBandsIdle(c); return; }
+      if(!this.o.attract) this.drawHUD(c);
+      if(this.superCut){ c.save(); if(this.port) c.translate(0,this.TOP); this.drawSuperCut(c); c.restore(); }
+    }
+    renderWorld(c){
       c.save();
       const cm=this.cam, z=cm.z, cx=Math.max(R.W/2/z, Math.min(R.W-R.W/2/z, cm.x)), cy=Math.max(R.H/2/z, Math.min(R.H-R.H/2/z, cm.y));
       c.translate(R.W/2,R.H/2); c.scale(z,z); c.translate(-cx,-cy);
@@ -386,8 +406,14 @@ window.KK = window.KK || {};
       this.drawFx(c);
       c.restore();
       if(this.flash>0){ c.fillStyle="rgba(255,255,255,"+Math.min(0.85,this.flash*0.14)+")"; c.fillRect(0,0,R.W,R.H); }
-      if(!this.o.attract) this.drawHUD(c);
-      if(this.superCut) this.drawSuperCut(c);
+    }
+    // VS・勝利画面の時の 縦持ちの帯(空っぽにせず しま模様)
+    drawBandsIdle(c){
+      for(const [y,h] of [[0,this.TOP],[this.TOP+R.H,this.BOT]]){
+        c.fillStyle="#1a0f24"; c.fillRect(0,y,R.W,h);
+        c.fillStyle="#2a1a3a"; for(let x=-40;x<R.W;x+=40){ c.beginPath(); c.moveTo(x,y+h); c.lineTo(x+20,y+h); c.lineTo(x+40,y); c.lineTo(x+20,y); c.fill(); }
+        c.fillStyle="#ffd23e"; c.fillRect(0, y===0 ? h-6 : y, R.W, 6);
+      }
     }
     drawFx(c){
       const lines = this.dark>0.3 || (this.phase==="ko" && this.phaseT<40);
@@ -425,6 +451,7 @@ window.KK = window.KK || {};
         this.banner?this.banner.text+Math.min(this.banner.t,9):"",anyBlink?blink:0].join(",");
     }
     drawHUD(c){
+      if(this.port) return this.drawHUDPort(c);
       const L=this.L.hud, sig=this.hudSig();
       if(sig===this._hudSig){ L.blit(c); this.drawPortraits(c); return; }
       this._hudSig=sig;
@@ -493,6 +520,71 @@ window.KK = window.KK || {};
       L.crisp(0,0,R.W,this.o.touch?160:128); L.crisp(0,R.H-72,R.W,72);
       if(this.banner) L.crisp(0,40,R.W,330); else if(this.comboShow) L.crisp(0,150,R.W,120);
       L.blit(c); this.drawPortraits(c);
+    }
+    // ---- 縦持ちHUD: 上の帯=顔・名前・体力・タイム・勝ち星 / 下の帯=ゲージ・必殺 / 帯なので試合にかぶらない ----
+    drawHUDPort(c){
+      const L=this.L.hud, sig="P"+this.hudSig();
+      if(sig===this._hudSig){ L.blit(c); this.drawPortraitsPort(c); return; }
+      this._hudSig=sig;
+      const g=L.begin(), [a,b]=this.f, tags=this.o.tags||["1P","2P"], T=this.TOP, B0=this.TOP+R.H;
+      // 帯の地
+      g.fillStyle="#1a0f24"; g.fillRect(0,0,R.W,T); g.fillRect(0,B0,R.W,this.BOT);
+      g.fillStyle="#ffd23e"; g.fillRect(0,T-6,R.W,6); g.fillRect(0,B0,R.W,6);
+      const BW=286, BH=40, BY=58;
+      const side=(f,left)=>{
+        const px = left ? 10 : R.W-10-96, bx = left ? 116 : R.W-116-BW;
+        g.fillStyle=INK; g.fillRect(px-4,8,104,104); g.fillStyle="#f4efe2"; g.fillRect(px,12,96,96); g.fillStyle="#2a2440"; g.fillRect(px+5,17,86,86);
+        g.fillStyle=INK; g.fillRect(px-6,2,62,30); g.fillStyle=f.glove; g.fillRect(px-3,5,56,24);
+        P.text(g,tags[f.idx],px+25,26,16,"#fff",{align:"center",latin:true,ow:5});
+        const nm=String(f.a.ch.name);
+        P.text(g,nm,left?bx:bx+BW,44,36,"#fff",{align:left?"left":"right",ow:8});
+        const tr=Math.max(0,f.trailHp/f.maxHp), hp=f.hp/f.maxHp, low=hp<0.25 && this.frame%16<8;
+        g.fillStyle=INK; g.fillRect(bx-5,BY-5,BW+10,BH+10); g.fillStyle="#5a0d12"; g.fillRect(bx,BY,BW,BH);
+        const fill=(r,col)=>{ const w=Math.round(BW*r/2)*2; g.fillStyle=col; if(left) g.fillRect(bx+BW-w,BY,w,BH); else g.fillRect(bx,BY,w,BH); return w; };
+        fill(tr,"#ff3a2a"); const w=fill(hp, low?"#ff9a1f":"#ffe234");
+        g.fillStyle=low?"#ffd08a":"#fff7a8"; if(left) g.fillRect(bx+BW-w,BY,w,6); else g.fillRect(bx,BY,w,6);
+        g.fillStyle="rgba(18,10,16,.35)"; for(let i=1;i<10;i++) g.fillRect(bx+BW*i/10,BY,2,BH);
+        for(let i=0;i<WIN_ROUNDS;i++){ const sx = left ? bx+BW-16-i*34 : bx+16+i*34; P.star(g,sx,BY+BH+24,14,i<f.wins?"#ffd23e":"#3a3350",5); }
+        if(f.guardHp<f.guardMax-1){ const gw=140, gx = left ? bx : bx+BW-gw;
+          g.fillStyle=INK; g.fillRect(gx-2,BY+BH+16,gw+4,14); g.fillStyle="#8fd0ff"; g.fillRect(gx,BY+BH+18,Math.round(gw*f.guardHp/f.guardMax/2)*2,10); }
+        // 下の帯: ゲージと必殺
+        const MW=330, MX = left ? 20 : R.W-20-MW, MY=B0+50, full=f.meter>=R.METER_MAX;
+        g.fillStyle=INK; g.fillRect(MX-5,MY-5,MW+10,34); g.fillStyle="#241c3a"; g.fillRect(MX,MY,MW,24);
+        const mw=Math.round(MW*f.meter/R.METER_MAX/2)*2;
+        g.fillStyle= full ? ["#ff4fa3","#ffd23e","#5fe0ff"][(this.frame>>2)%3] : "#a056ff";
+        if(left) g.fillRect(MX,MY,mw,24); else g.fillRect(MX+MW-mw,MY,mw,24);
+        for(let i=1;i<4;i++){ g.fillStyle=INK; g.fillRect(MX+MW*i/4-1,MY,3,24); }
+        P.text(g, full ? "MAX! ▼+必殺" : "SUPER", left?MX:MX+MW, MY-10, full?32:16, full?"#ffd23e":"#fff", {align:left?"left":"right",latin:!full,ow:6});
+        const cdMax=KK.MOVES.special.startup+KK.MOVES.special.active+KK.MOVES.special.recovery+KK.MOVES.special.cooldown, cd=f.cd.special||0;
+        if(!full){ const CX = left ? MX+MW-96 : MX, CY=MY-34;
+          g.fillStyle=INK; g.fillRect(CX-3,CY-3,102,26); g.fillStyle= cd>0 ? "#3a3350" : "#ff9a1f"; g.fillRect(CX,CY,96,20);
+          if(cd>0){ g.fillStyle="#a056ff"; g.fillRect(CX,CY,Math.round(96*(1-cd/cdMax)/2)*2,20); }
+          P.text(g,"必殺",CX+48,CY+18,20,cd>0?"#9d95c4":"#fff",{align:"center",ow:5}); }
+      };
+      side(a,true); side(b,false);
+      // タイム・ラウンド
+      const sec=Math.max(0,Math.ceil(this.timer/60));
+      g.fillStyle="#d81f26"; g.fillRect(R.W/2-62,6,124,104); g.fillStyle=INK; g.fillRect(R.W/2-56,12,112,92); g.fillStyle="#f6f1e2"; g.fillRect(R.W/2-50,18,100,80);
+      P.text(g,"TIME",R.W/2,40,16,"#d81f26",{align:"center",latin:true,outline:false});
+      P.text(g,String(sec).padStart(2,"0"),R.W/2,90,48,sec<=10&&this.frame%30<15?"#d81f26":INK,{align:"center",latin:true,outline:false});
+      g.fillStyle=INK; g.fillRect(R.W/2-74,114,148,30); g.fillStyle="#c99a2e"; g.fillRect(R.W/2-70,118,140,22);
+      P.text(g,"ROUND "+this.round,R.W/2,136,16,"#fff3c4",{align:"center",latin:true,ow:4});
+      // コンボ・帯の文字は 試合の中に
+      g.save(); g.translate(0,T);
+      if(this.comboShow){ const cs=this.comboShow, left=cs.who===0, k=cs.t<6?1.5-cs.t*0.08:1;
+        if(!(cs.t>60 && cs.t%4<2)){ g.save(); g.translate(left?30:R.W-30,120); g.scale(k,k);
+          P.text(g,cs.n+" HITS",0,0,48,"#ffd23e",{align:left?"left":"right",latin:true,ow:10,shadow:"#d81f26",sd:5});
+          P.text(g, cs.done ? cs.dmg+" DMG" : "れんだ！",0,54,48,cs.done?"#ff9a1f":"#fff",{align:left?"left":"right",ow:10,latin:!!cs.done}); g.restore(); } }
+      if(this.banner) this.drawBanner(g);
+      g.restore();
+      L.crisp(0,0,R.W,T); L.crisp(0,B0,R.W,this.BOT);
+      if(this.banner) L.crisp(0,T+40,R.W,340); else if(this.comboShow) L.crisp(0,T+60,R.W,140);
+      L.blit(c); this.drawPortraitsPort(c);
+    }
+    drawPortraitsPort(c){
+      for(const f of this.f){ const px = f.idx===0 ? 10 : R.W-10-96, th=f.a.thumb, s=86/Math.max(th.width,th.height);
+        c.save(); c.beginPath(); c.rect(px+5,17,86,86); c.clip(); if(!f.alive){ c.filter="grayscale(1)"; }
+        c.drawImage(th, px+48-th.width*s/2, 17+43-th.height*s/2, th.width*s, th.height*s); c.restore(); }
     }
     // 顔写真(高解像度)
     drawPortraits(c){

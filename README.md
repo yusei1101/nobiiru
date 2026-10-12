@@ -91,3 +91,8 @@
 - PCに VOICEVOX(無料・https://voicevox.hiroshiba.jp/ 、GPUなしPCは CPU版)を入れて起動 → `アナウンス音声をつくる.bat`(= `python kakutou/tools/make_announcer.py [キャラ名]`)で `kakutou/voice/*.wav` と `manifest.json` を作る。ゲームに同梱されるので スマホでも鳴る。
 - キャラ編集の「VOICEVOX」で声を選んで保存 → 掛け声・必殺技名(キャラの声)と 名前・勝ち名乗り(アナウンスの声)を作って キャラに保存(`voiceClips`)。serve.py の `/__vv` が PC の VOICEVOX へ中継するので、同じWi-Fiのスマホからも作れる。
 - 利用規約により「VOICEVOX:キャラ名」を表示(タイトル下部・編集画面)。こえモード: VOICEVOX / ペチャクチャ / よみあげ / なし。録音が無いセリフはペチャクチャ声。
+
+### スマホ優先UI(2026-10-12)
+
+- 対戦: スマホのたて持ち=上に試合(体力・タイムの帯／ゲージの帯つき、Battle の portrait レイアウト)・下に操作パネル。よこ持ち=全面＋ボタン重ね。向きを変えるとその場で切替(Battle.setLayout)。
+- メニュー: 決定ボタンを画面下に固定、タップ領域を大きく、キャラ選択はパネルを小さくして一覧を広く、遊び方/ポーズはタッチ操作の説明。

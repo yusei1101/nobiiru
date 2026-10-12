@@ -218,7 +218,6 @@
     flex-direction:column; align-items:center; justify-content:center; gap:18px; }
   #rotHint .phone{ width:46px; height:80px; border:5px solid var(--yel); border-radius:8px; animation:rot 1.6s steps(4) infinite; }
   @keyframes rot{ 0%,30%{ transform:rotate(0) } 70%,100%{ transform:rotate(-90deg) } }
-  body.touch.portrait #battle:not(.hidden) #rotHint{ display:flex; }
   /* よこ向きスマホ(高さが低い画面)向け */
   @media (max-height:520px){
     .logo-main{ font-size:clamp(56px,12vh,96px); margin:0; }
@@ -260,6 +259,45 @@
     .opts{ gap:8px; } .chip{ font-size:12px; padding:4px 8px 3px; } .opt > span{ font-size:8px; }
     .sbar{ gap:8px; }
   }
+  /* ================= スマホ優先の調整 ================= */
+  body.touch .keyOnly{ display:none; } body:not(.touch) .touchOnly{ display:none; }
+  body.touch .chip{ min-height:38px; padding:8px 14px 7px; font-size:16px; }
+  body.touch .pbtn{ min-height:50px; }
+  body.touch .mi{ padding:12px 18px 10px; }
+  /* 対戦: 横=全面に試合＋ボタン重ね / 縦=上に試合、下に操作パネル */
+  #stageBox{ position:absolute; inset:0; }
+  #battle.port{ display:flex; flex-direction:column; background:#120a1c; }
+  #battle.port #stageBox{ position:relative; inset:auto; flex:none; width:100%; aspect-ratio:960/786; max-height:64vh; }
+  #battle.port #pad{ position:relative; inset:auto; flex:1; min-height:0;
+    background:repeating-linear-gradient(135deg,#1c1230 0 14px,#170e28 14px 28px); box-shadow:inset 0 6px 0 #ffd23e; }
+  #battle.port #pad .stickZone{ top:0; bottom:0; width:56%; }
+  #battle.port #pad .stickBase{ left:27%; top:60%; }
+  #battle.port #pad .stickHelp{ left:14px; top:14px; bottom:auto; font-size:13px; max-width:52%; }
+  #battle.port #pad .btns{ right:14px; top:60%; bottom:auto; transform:translateY(-50%); width:212px; height:206px; }
+  #battle.port #pad .pb{ width:90px; height:90px; font-size:22px; }
+  #battle.port #pad .pb.t{ width:72px; height:72px; }
+  #battle.port #pauseBtn{ left:auto; right:12px; bottom:auto; top:calc(min(64vh, 100vw * 786 / 960) + 12px); transform:none; }
+  #battle.port #ctrlBtn{ left:auto; right:96px; bottom:auto; top:calc(min(64vh, 100vw * 786 / 960) + 12px); }
+  /* メニュー: 決定ボタンは画面の下に固定(親指が届く) */
+  @media (max-width:760px), (pointer:coarse) and (orientation:portrait){
+    #selActions{ position:sticky; bottom:0; z-index:6; background:linear-gradient(to bottom, rgba(20,10,30,0), #140a1e 22%); padding:14px 4px max(8px,env(safe-area-inset-bottom)); margin-top:auto; }
+    #selActions .row{ width:100%; justify-content:space-between; } #selActions #fightBtn{ flex:1; font-size:20px; }
+    .actionBar{ position:sticky; bottom:0; z-index:6; width:100%; background:linear-gradient(to bottom, rgba(20,10,30,0), #170e2a 25%); padding:16px 0 max(10px,env(safe-area-inset-bottom)); }
+    .actionBar .pbtn{ flex:1; max-width:220px; }
+    .page{ padding-bottom:0; } #select{ padding-bottom:0; }
+    .opts{ justify-content:center; } .opt{ flex-wrap:wrap; justify-content:center; }
+    .tiles{ grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:14px; padding:12px; overflow:visible; }
+    .smain{ flex:none; }
+    .big{ min-height:0; padding:8px 6px; } .big .pic{ min-height:64px; } .big .pic img{ max-height:84px; }
+    .big .ok{ font-size:16px; top:22%; left:auto; right:6px; transform:rotate(-10deg); }
+    .big .bnm{ font-size:17px; margin-top:2px; } .big .bty{ font-size:12px; } .bar{ margin:3px 0; } .bar i{ height:10px; }
+    .big .q{ font-size:36px; margin-bottom:10px; }
+    .cgrid{ grid-template-columns:repeat(2,1fr); gap:16px; }
+    .ed{ gap:16px; } .edcol{ flex-basis:100%; }
+    #pvCv{ width:min(70vw,260px) !important; height:min(70vw,260px) !important; }
+    .field > label{ min-width:64px; font-size:14px; }
+    .hdr{ font-size:18px; }
+  }
 </style>
 </head>
 <body>
@@ -289,7 +327,17 @@
 
   <section id="help" class="screen hidden">
     <div class="hdr">HOW TO PLAY</div>
-    <div class="panel keys">
+    <div class="panel keys touchOnly">
+      <b>左の指</b>：画面の左側を さわって ひっぱると いどう（相手の方=前進・反対=後退）<br>
+      　　上に はじくと ジャンプ ／ 下で しゃがみ<br>
+      <b>ガード</b>：相手と<b>反対</b>に ひっぱる（下＋反対で しゃがみガード）<br>
+      <b>右の指</b>：<b>弱</b>・<b>強</b>・<b>必殺</b>（ちいさい自分を投げる）・<b>投</b>げ<br>
+      　　指を すべらせて 弱→強 と押しかえられる。しゃがんで弱=下段、しゃがんで強=足払い<br>
+      <b>れんぞく技</b>：弱 → 弱 → 強 → 必殺<br>
+      <b>超ひっさつ</b>：ゲージMAXで 下＋必殺（巨大な自分が 空から落ちる）<br>
+      スマホは たてでも よこでも あそべる
+    </div>
+    <div class="panel keys keyOnly">
       <b>1人</b>：<kbd>A</kbd><kbd>D</kbd>/<kbd>←</kbd><kbd>→</kbd> いどう ・ <kbd>W</kbd>/<kbd>↑</kbd> ジャンプ ・ <kbd>S</kbd>/<kbd>↓</kbd> しゃがみ<br>
       　　<kbd>J</kbd>/<kbd>Z</kbd> 弱 ・ <kbd>K</kbd>/<kbd>X</kbd> 強 ・ <kbd>L</kbd>/<kbd>C</kbd> 必殺（ちいさい自分を投げる） ・ <kbd>I</kbd>/<kbd>V</kbd> 投げ<br>
       <b>ガード</b>：相手と<b>反対方向</b>を押す。立ち=上段・中段・空中技 ／ しゃがみ=上段・中段・下段<br>
@@ -330,7 +378,7 @@
       <div class="tiles" id="selGrid"></div>
       <div class="big p2" id="big1"></div>
     </div>
-    <div class="sbar">
+    <div class="sbar" id="selActions">
       <div class="opts">
         <div class="opt"><span>MODE</span><div class="chips" id="modeChips"></div></div>
         <div class="opt" id="diffRow"><span>LEVEL</span><div class="chips" id="diffChips"></div></div>
@@ -348,7 +396,7 @@
     <div class="hdr">CHARACTER</div>
     <div class="sub2">画像を 登録すると、その子が 戦う。ブラウザを とじても のこる。</div>
     <div class="cgrid" id="manGrid"></div>
-    <div class="row"><button class="pbtn ghost" id="manBack">もどる</button><button class="pbtn" id="manFight">たたかう</button></div>
+    <div class="row actionBar"><button class="pbtn ghost" id="manBack">もどる</button><button class="pbtn" id="manFight">たたかう</button></div>
   </section>
 
   <!-- キャラ編集 -->
@@ -391,12 +439,12 @@
         <div class="field"><label>必殺技の名前</label><input type="text" id="edSuper" maxlength="16"><button class="dice" data-dice="super">おまかせ</button></div>
       </div>
     </div>
-    <div class="row"><button class="pbtn ghost" id="edCancel">やめる</button><button class="pbtn" id="edSave">ほぞん</button></div>
+    <div class="row actionBar"><button class="pbtn ghost" id="edCancel">やめる</button><button class="pbtn" id="edSave">ほぞん</button></div>
   </section>
 
   <!-- 対戦 -->
   <section id="battle" class="hidden">
-    <canvas id="bcv"></canvas>
+    <div id="stageBox"><canvas id="bcv"></canvas></div>
     <button id="pauseBtn">PAUSE</button>
     <button id="ctrlBtn">そうさ</button>
     <div id="ctrlStrip" class="hidden"></div>
